@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EEG Model Review</title>
+<style>
+
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --ink:#12161c; --muted:#5d6672; --line:#d9dee5;
+  --accent:#1f6feb; --accent-soft:#e7f0fe; --ok:#137a4a; --warn:#a8620a; --danger:#b3261e;
+  --trace:#101418; --grid:#e9ecf1; --grid-strong:#cfd6e0; --paper:#ffffff;
+  --mark:rgba(31,111,235,.16); --mark-strong:rgba(31,111,235,.34); --mark-line:#1f6feb;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#9aa4b2; --line:#2a313b;
+  --accent:#5b9bff; --accent-soft:#16243c; --ok:#3fb27f; --warn:#d9a441; --danger:#f2776b;
+  --trace:#d7e2ee; --grid:#1d232c; --grid-strong:#2f3946; --paper:#0b0e13;
+  --mark:rgba(91,155,255,.20); --mark-strong:rgba(91,155,255,.40); --mark-line:#5b9bff;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font:13px/1.45 var(--font);background:var(--bg);color:var(--ink);overflow:hidden}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+
+/* ---------- shell ---------- */
+#app{display:grid;grid-template-columns:236px 1fr 400px;grid-template-rows:auto 1fr;height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:8px 14px;
+  background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:14px;margin:0;font-weight:650;letter-spacing:-.01em;white-space:nowrap}
+header .sp{flex:1}
+.savest{font-size:11px;color:var(--muted);white-space:nowrap}
+.savest b{color:var(--ok);font-weight:650}
+.savest .warn{color:var(--warn);font-weight:650}
+.savest button{margin-left:6px;padding:2px 8px;font-size:11px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--accent-soft);
+  color:var(--accent);font-size:11px;font-weight:650;letter-spacing:.03em}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:7px;padding:5px 10px}
+.ghost:hover{background:var(--accent-soft);border-color:var(--accent)}
+.primary{background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:7px;padding:6px 13px;font-weight:600}
+.primary:hover{filter:brightness(1.08)}
+.primary[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ---------- worklist ---------- */
+#worklist{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:10px}
+.wl-head{display:flex;align-items:flex-start;gap:6px;width:100%;text-align:left;font:inherit;
+  font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+  margin:12px 0 6px;padding:4px;font-weight:700;background:transparent;border:0;
+  border-radius:6px;cursor:pointer}
+.wl-head:hover{background:var(--accent-soft);color:var(--ink)}
+.wl-head:first-child{margin-top:2px}
+.wl-head .caret{flex:none;width:9px;text-align:center;line-height:1.35;
+  transition:transform .12s ease}
+.wl-head.closed .caret{transform:rotate(-90deg)}
+.wl-head .ttl{flex:1;white-space:normal;line-height:1.35}
+.wl-head .cnt{flex:none;text-transform:none;letter-spacing:0;font-weight:600;opacity:.8;
+  font-variant-numeric:tabular-nums}
+.wl-group{display:flex;flex-direction:column}
+.wl-group.closed{display:none}
+.wl-item{display:flex;gap:8px;align-items:flex-start;width:100%;text-align:left;padding:7px 8px;
+  border:1px solid transparent;border-radius:8px;background:transparent;margin-bottom:2px;line-height:1.3}
+.wl-item:hover{background:var(--accent-soft)}
+.wl-item.active{background:var(--accent-soft);border-color:var(--accent)}
+.wl-item .t{font-size:12px;font-weight:600}
+.wl-item .s{font-size:11px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--line);margin-top:5px;flex:none}
+.dot.done{background:var(--ok)}
+.dot.partial{background:var(--warn)}
+#progress{font-size:11px;color:var(--muted);padding:6px 6px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
+
+/* ---------- viewer ---------- */
+#viewer{display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+#controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:7px 12px;
+  background:var(--panel);border-bottom:1px solid var(--line)}
+.ctl{display:flex;align-items:center;gap:5px}
+.ctl label{font-size:11px;color:var(--muted);font-weight:600}
+.ctl select,.ctl input[type=number]{border:1px solid var(--line);background:var(--panel);
+  border-radius:6px;padding:3px 6px;font-size:12px}
+#question{padding:6px 12px;background:var(--accent-soft);border-bottom:1px solid var(--line);
+  font-size:12px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+#question b{font-weight:650}
+#question .note{color:var(--muted)}
+.refchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--accent);
+  background:var(--panel);color:var(--accent);border-radius:999px;padding:1px 10px;font-weight:650;font-size:11.5px}
+.refchip .k{font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7}
+.refchip.warn{border-color:var(--warn);color:var(--warn)}
+.refchip.muted{border-color:var(--line);color:var(--muted);font-weight:500;font-style:italic}
+.wl-item .s.mismatch{color:var(--danger);font-weight:600}
+.wl-mode{display:flex;gap:4px;margin-top:6px}
+.wl-mode button{flex:1;border:1px solid var(--line);background:transparent;border-radius:6px;padding:3px 0;font-size:11px;color:var(--muted)}
+.wl-mode button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:650}
+.wl-item .ord{font:10px var(--mono);color:var(--muted);min-width:22px;text-align:right;margin-top:2px}
+.role{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:1px}
+.role.prototype{background:#dcfce7;color:#166534}
+.role.coverage{background:var(--accent-soft);color:var(--accent)}
+.role.boundary{background:#fef3c7;color:#92400e}
+.role.reserve{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+html[data-theme="dark"] .role.prototype{background:#14532d;color:#bbf7d0}
+html[data-theme="dark"] .role.boundary{background:#78350f;color:#fde68a}
+.wl-more{width:100%;border:1px dashed var(--line);background:transparent;border-radius:6px;padding:5px;font-size:11px;color:var(--muted);margin-top:6px}
+#canvasWrap{flex:1;position:relative;min-height:0;background:var(--paper);margin:8px 12px 0;
+  border:1px solid var(--line);border-radius:8px;overflow:hidden}
+#trace{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;display:block}
+#hint{position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--muted);
+  background:color-mix(in srgb,var(--paper) 85%,transparent);padding:2px 7px;border-radius:5px;pointer-events:none}
+#navbar{display:flex;align-items:center;gap:10px;padding:7px 12px}
+#overview{flex:1;height:34px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;display:block}
+#pageLabel{font:12px var(--mono);color:var(--muted);white-space:nowrap}
+
+/* ---------- form ---------- */
+#form{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#formBody{flex:1;overflow-y:auto;padding:12px 14px 16px;min-height:0}
+.sec{margin-bottom:16px}
+.sec>h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+  margin:0 0 8px;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:5px}
+.f{margin-bottom:11px}
+.f>label.q{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+.f .req{color:var(--danger);margin-left:2px}
+.opts{display:flex;flex-wrap:wrap;gap:5px}
+.opt{border:1px solid var(--line);border-radius:6px;padding:4px 9px;font-size:12px;background:var(--panel);
+  color:var(--ink)}
+.opt:hover{border-color:var(--accent)}
+.opt.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.opt.on.multi{background:var(--ok);border-color:var(--ok)}
+.f input[type=text],.f input[type=number],.f textarea{width:100%;border:1px solid var(--line);
+  border-radius:6px;padding:5px 7px;font-size:12px;background:var(--panel)}
+.f textarea{min-height:52px;resize:vertical}
+.f .hint{font-size:11px;color:var(--muted);margin-top:3px}
+.f.missing>label.q{color:var(--danger)}
+.f.missing input,.f.missing textarea{border-color:var(--danger)}
+.label-big .opt{padding:7px 12px;font-size:13px}
+
+/* intervals */
+#ivList{display:flex;flex-direction:column;gap:6px}
+.iv{border:1px solid var(--line);border-radius:7px;padding:7px 8px;background:var(--bg)}
+.iv .top{display:flex;gap:6px;align-items:center;margin-bottom:5px}
+.iv .time{font:11px var(--mono);font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline dotted}
+.iv .ch{font:11px var(--mono);color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.iv .x{border:none;background:transparent;color:var(--muted);font-size:15px;line-height:1;padding:0 3px}
+.iv .x:hover{color:var(--danger)}
+.iv select,.iv input{width:100%;border:1px solid var(--line);border-radius:5px;padding:3px 5px;font-size:11px;background:var(--panel)}
+.iv .row{display:flex;gap:5px}
+.empty{font-size:11px;color:var(--muted);font-style:italic;padding:6px 2px}
+
+
+.iv.deciding{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.iv .num{font:11px var(--mono);font-weight:700;color:#fff;background:var(--muted);border-radius:4px;padding:0 5px}
+.iv.deciding .num{background:var(--accent)}
+.iv .f{margin:8px 0 4px}
+.iv .f>label.q{font-size:11.5px}
+.iv .row2{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:start}
+.iv .opts .opt{padding:3px 7px;font-size:11px}
+.decide{width:100%;margin-top:6px;border:1px dashed var(--line);background:transparent;border-radius:6px;padding:5px;font-size:11.5px;color:var(--muted)}
+.decide:hover{border-color:var(--accent);color:var(--accent)}
+.decide.on{border-style:solid;border-color:var(--accent);color:var(--accent);font-weight:650;background:var(--accent-soft)}
+.hint.warn{color:var(--danger);font-weight:600}
+.iv{cursor:pointer}
+.iv.focus{box-shadow:0 0 0 2px var(--accent);background:var(--accent-soft)}
+.iv.deciding.focus{box-shadow:0 0 0 2px var(--accent)}
+.iv .detail{border-left:2px solid var(--accent);padding-left:8px;margin:4px 0 2px}
+.iv input,.iv .opt,.iv .decide{cursor:auto}
+.iv .opt,.iv .decide,.iv .x,.iv .time{cursor:pointer}
+#formFoot{flex:none;background:var(--panel);border-top:1px solid var(--line);
+  padding:10px 14px;display:flex;gap:8px;align-items:center}
+#formFoot .st{font-size:11px;color:var(--muted);flex:1}
+
+/* modal */
+#modal{position:fixed;inset:0;background:rgba(8,11,16,.55);display:none;align-items:center;justify-content:center;z-index:50}
+#modal.on{display:flex}
+#modalBox{background:var(--panel);border-radius:12px;max-width:760px;max-height:82vh;overflow-y:auto;
+  padding:20px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#modalBox h2{margin:0 0 4px;font-size:17px}
+#modalBox h4{margin:16px 0 4px;font-size:13px}
+#modalBox p,#modalBox li{font-size:12.5px;color:var(--ink)}
+#modalBox kbd{font:11px var(--mono);border:1px solid var(--line);border-radius:4px;padding:1px 5px;background:var(--bg)}
+@media (max-width:1200px){#app{grid-template-columns:200px 1fr 300px}}
+
+/* ---- review panel ---- */
+#review{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:14px 16px 24px;min-width:0}
+.rv-q{font-size:14px;font-weight:650;line-height:1.35;margin:0 0 10px}
+.rv-opts{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.rv-opt{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px}
+.rv-opt .k{font:11px var(--mono);font-weight:700;color:var(--muted);min-width:14px}
+.rv-opt.gold{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--panel))}
+.rv-opt.pred{box-shadow:0 0 0 2px var(--accent) inset}
+.rv-opt .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:4px;padding:1px 6px}
+.rv-opt .tag.gold{background:var(--ok);color:#fff}
+.rv-opt .tag.pred{background:var(--accent);color:#fff}
+.verdict{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:700}
+.verdict.ok{background:color-mix(in srgb,var(--ok) 14%,var(--panel));color:var(--ok)}
+.verdict.bad{background:color-mix(in srgb,var(--danger) 12%,var(--panel));color:var(--danger)}
+.verdict.hidden{background:var(--bg);color:var(--muted);font-weight:500}
+.rv-think{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg);font-size:12.5px;line-height:1.55}
+.rv-think p{margin:0 0 9px}
+.rv-think p:last-child{margin:0}
+.rv-think .ans{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-weight:650}
+.rv-meta{font:11px var(--mono);color:var(--muted);margin:8px 0 14px;display:flex;gap:12px;flex-wrap:wrap}
+.blur{filter:blur(6px);user-select:none;pointer-events:none}
+.rv-note textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;background:var(--panel);resize:vertical}
+.rv-note .hint{font-size:11px;color:var(--muted);margin-top:3px}
+.wl-item .res{font:11px var(--mono);font-weight:700;min-width:14px;margin-top:2px}
+.wl-item .res.ok{color:var(--ok)} .wl-item .res.bad{color:var(--danger)}
+#placeholder{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
+  color:var(--muted);font-size:13px;line-height:1.6;padding:30px;background:var(--paper)}
+#placeholder.on{display:flex}
+#placeholder b{color:var(--ink)}
+#placeholder code{font:11px var(--mono);background:var(--bg);padding:1px 5px;border-radius:4px}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>EEG Model Review</h1>
+    <span class="badge" id="dsBadge">—</span>
+    <span id="runInfo" class="savest"></span>
+    <span class="sp"></span>
+    <button class="ghost" id="btnBlind" title="Hide the correct answer and the model's verdict until you reveal them">Blind mode: off</button>
+    <button class="ghost" id="btnHelp">About this page</button>
+    <button class="ghost" id="btnTheme">Dark</button>
+    <button class="ghost" id="btnLoad">Load recordings…</button>
+    <input type="file" id="fileRec" accept=".json" hidden>
+    <button class="primary" id="btnExport">Export comments</button>
+  </header>
+
+  <nav id="worklist"></nav>
+
+  <main id="viewer">
+    <div id="controls"></div>
+    <div id="question"></div>
+    <div id="canvasWrap">
+      <canvas id="trace"></canvas>
+      <div id="placeholder"></div>
+      <div id="hint">Read the trace as usual · montage, sensitivity and filters are adjustable</div>
+    </div>
+    <div id="navbar">
+      <button class="ghost" id="btnPrev">◀ Page</button>
+      <canvas id="overview"></canvas>
+      <button class="ghost" id="btnNext">Page ▶</button>
+      <span id="pageLabel">—</span>
+    </div>
+  </main>
+
+  <aside id="review"></aside>
+</div>
+
+<div id="modal"><div id="modalBox"></div></div>
+
+<script>
+/* ==========================================================================
+   0. DATA — model outputs (always present) and signals (optional, by id)
+   ========================================================================== */
+const RESULTS = {"checkpoint": "brief_4b_r64 step 7600", "prompt": "brief (question + options + frame description + think step by step)", "macro_balanced_accuracy": 0.651, "examples": [{"id": "tuab_aaaaajce_s001_t000", "corpus": "tuab", "question": "Is the background activity in this EEG recording normal or abnormal?", "options": {"A": "normal", "B": "abnormal"}, "frames": 140, "gold": "A (normal)", "pred": "A (normal)", "correct": true, "output_tokens": 165, "output": "To determine if the background activity in the EEG recording is normal or abnormal, it's important to consider typical features of a normal EEG. Normal EEGs usually display regular wave patterns such as alpha waves during relaxation and beta waves during active thinking. Abnormalities may include irregular spikes, sharp waves, or excessive slow-wave activity.\n\nIn the provided frames, the EEG traces show varying amplitudes but do not exhibit clear signs of pathological activity like epileptic spikes or severe slowing. The spectrogram also appears consistent with expected frequency distributions for a resting state. While some variability is present, there are no obvious abnormalities that would suggest a disorder.\n\nBased on the absence of clear pathological features and the presence of what appears to be regular waveforms, the background activity is likely within normal limits.\n</think>\n\n<answer>A</answer>"}, {"id": "tuab_aaaaapwn_s001_t001", "corpus": "tuab", "question": "Is the background activity in this EEG recording normal or abnormal?", "options": {"A": "normal", "B": "abnormal"}, "frames": 138, "gold": "A (normal)", "pred": "A (normal)", "correct": true, "output_tokens": 168, "output": "Analyzing the EEG data involves examining both the raw EEG traces and the spectrogram for any irregularities. Normal EEG patterns typically exhibit regular waveforms without sudden spikes or unusual frequencies. Abnormal patterns may include epileptic spikes, slow waves, or other deviations from typical rhythms.\n\nIn the provided frames, the raw EEG traces display varying amplitudes but do not show clear signs of pathological features such as sharp spikes or excessive slow-wave activity. The spectrogram indicates a range of frequencies with some variation, which can be consistent with normal brain activity. There are no obvious abnormalities like seizure-like discharges or significant frequency distortions that would suggest an issue.\n\nConsidering the absence of clear pathological markers and the presence of typical waveform variations, the background activity appears to fall within the range of normal EEG patterns.\n</think>\n\n<answer>A</answer>"}, {"id": "tuab_aaaaahzm_s001_t001", "corpus": "tuab", "question": "Is the background activity in this EEG recording normal or abnormal?", "options": {"A": "normal", "B": "abnormal"}, "frames": 122, "gold": "A (normal)", "pred": "B (abnormal)", "correct": false, "output_tokens": 169, "output": "Analyzing the EEG data involves examining both the raw EEG traces and the spectrogram for any irregularities. Normal EEG patterns typically exhibit regular waveforms without sudden spikes or unusual frequencies. In contrast, abnormal EEGs may display features such as epileptic spikes, excessive slow waves, or other atypical patterns.\n\nObserving the provided frames, there are instances where the EEG traces show sharp peaks or erratic fluctuations that deviate from typical rhythmic patterns. These abrupt changes suggest the presence of abnormal electrical activity. Additionally, the spectrogram reveals areas with intense coloration, which could indicate increased power in certain frequency bands—another potential sign of abnormality.\n\nConsidering these observations, the presence of irregular waveforms and potentially elevated activity in specific frequency ranges supports the conclusion that the background activity is not within normal limits.\n</think>\n\n<answer>B</answer>"}, {"id": "tusz_aaaaaarq_s018_t005", "corpus": "tusz", "question": "Does this EEG recording contain an electrographic seizure?", "options": {"A": "no seizure", "B": "seizure"}, "frames": 60, "gold": "A (no seizure)", "pred": "A (no seizure)", "correct": true, "output_tokens": 199, "output": "To determine if the EEG recording contains an electrographic seizure, it's important to look for abnormal patterns such as spikes or sharp waves that are characteristic of seizures. The provided frames show multiple lines representing different channels with varying amplitudes over time. A seizure would typically present as a sudden increase in activity, often with high-frequency spikes.\n\nExamining the frames from 0 to 590 seconds, there are instances where the EEG lines display rapid fluctuations and peaks. These could indicate abnormal electrical discharges. However, without clear evidence of sustained or repetitive spike patterns typical of a seizure, it is difficult to confirm the presence of a seizure. Electrographic seizures usually involve specific features like generalized spike-wave complexes or focal abnormalities, which may not be clearly visible in the given data.\n\nGiven the information available and the absence of definitive signs of a seizure in the described frames, the most appropriate conclusion is that the recording does not show an electrographic seizure.\n</think>\n\n<answer>A</answer>"}, {"id": "tusz_aaaaaqtq_s006_t007", "corpus": "tusz", "question": "Does this EEG recording contain an electrographic seizure?", "options": {"A": "no seizure", "B": "seizure"}, "frames": 60, "gold": "A (no seizure)", "pred": "A (no seizure)", "correct": true, "output_tokens": 187, "output": "To determine if the EEG recording contains an electrographic seizure, it's important to look for abnormal electrical activity such as spikes or sharp waves that are characteristic of seizures. The provided frames show multiple lines representing different channels with varying amplitudes over time. A seizure would typically present as a sudden increase in amplitude or a specific pattern like spike-wave discharges.\n\nExamining the frames from 0 to 590 seconds, there is no clear evidence of a consistent or repeated abnormal pattern that fits the definition of a seizure. The activity appears to be within normal ranges without any distinct epileptiform discharges. While some frames may have higher intensity areas, these do not form a recognizable seizure pattern across the entire recording.\n\nBased on the absence of typical seizure features such as generalized spike-wave complexes or focal abnormalities, the most appropriate conclusion is that the recording does not contain an electrographic seizure.\n</think>\n\n<answer>A</answer>"}, {"id": "tusz_aaaaaqtq_s006_t001", "corpus": "tusz", "question": "Does this EEG recording contain an electrographic seizure?", "options": {"A": "no seizure", "B": "seizure"}, "frames": 60, "gold": "A (no seizure)", "pred": "B (seizure)", "correct": false, "output_tokens": 195, "output": "To determine if the EEG recording contains an electrographic seizure, it is necessary to look for abnormal electrical activity such as spikes or sharp waves that are characteristic of seizures. The provided frames show multiple lines representing different channels with varying amplitudes and frequencies. A key indicator of a seizure would be a sudden increase in amplitude or frequency, which appears as a spike or burst in the EEG.\n\nExamining the frames, there are instances where the EEG lines display rapid fluctuations and peaks, particularly around certain timestamps. These patterns suggest increased electrical activity that could be consistent with a seizure. Additionally, the spectrogram provides a visual representation of frequency content over time, showing areas of high intensity that may correspond to seizure activity.\n\nGiven the presence of these abnormal patterns in both the raw EEG and the spectrogram, it is reasonable to conclude that the recording includes an electrographic seizure. The observed features align with typical signs of seizure activity in EEG recordings.\n</think>\n\n<answer>B</answer>"}, {"id": "tuep_aaaaanjh_s002_t001", "corpus": "tuep", "question": "Based on this EEG, does this patient have epilepsy?", "options": {"A": "no epilepsy", "B": "epilepsy"}, "frames": 180, "gold": "B (epilepsy)", "pred": "B (epilepsy)", "correct": true, "output_tokens": 196, "output": "To determine if the patient has epilepsy based on the EEG, it's important to look for abnormal electrical activity such as spikes or sharp waves. Epilepsy often presents with these types of patterns in EEG recordings. The provided frames include both raw EEG traces and a spectrogram showing frequency power over time.\n\nExamining the EEG traces, there are multiple instances where sharp peaks appear, particularly around the 100-second mark. These spikes are consistent with epileptic discharges. Additionally, the spectrogram reveals increased power in certain frequencies during these events, which aligns with typical seizure activity. The presence of repeated, irregular spikes across different channels further supports the possibility of epilepsy.\n\nEpilepsy is characterized by recurrent unprovoked seizures, and the observed abnormalities in the EEG suggest that the patient may be experiencing such episodes. Based on the evidence from the EEG traces and spectrogram, the most likely conclusion is that the patient has epilepsy.\n</think>\n\n<answer>B</answer>"}, {"id": "tuep_aaaaalim_s003_t004", "corpus": "tuep", "question": "Based on this EEG, does this patient have epilepsy?", "options": {"A": "no epilepsy", "B": "epilepsy"}, "frames": 124, "gold": "B (epilepsy)", "pred": "B (epilepsy)", "correct": true, "output_tokens": 150, "output": "Analyzing the EEG data to determine if the patient has epilepsy involves identifying abnormal electrical activity such as spikes or sharp waves. Epilepsy is often associated with these types of patterns in EEG recordings. The provided frames show multiple rows of EEG traces with varying amplitudes and frequencies. Upon closer inspection, there are several instances where sharp peaks appear, which may indicate epileptiform discharges. These spikes are irregular and not consistent with normal brain wave patterns. Additionally, the spectrogram displays areas of high intensity, particularly in red and orange hues, suggesting increased neural activity that could be related to seizure activity. Given the presence of these abnormal patterns, it is reasonable to conclude that the patient likely has epilepsy.\n</think>\n\n<answer>B</answer>"}, {"id": "tuep_aaaaaljb_s002_t002", "corpus": "tuep", "question": "Based on this EEG, does this patient have epilepsy?", "options": {"A": "no epilepsy", "B": "epilepsy"}, "frames": 44, "gold": "A (no epilepsy)", "pred": "B (epilepsy)", "correct": false, "output_tokens": 181, "output": "To determine if the patient has epilepsy based on the EEG, it's important to look for abnormal electrical activity such as spikes or sharp waves. The provided frames show multiple instances of irregular waveforms in the EEG traces, including sudden peaks that appear at various time points like 10s, 20s, 30s, etc. These patterns are consistent with epileptiform discharges, which are commonly associated with epilepsy.\n\nEpilepsy is often diagnosed when there is evidence of recurrent seizures or abnormal brain activity on EEG. The presence of these sharp, repetitive spikes across different timestamps supports the possibility of an underlying seizure disorder. While a single episode may not be conclusive, the pattern observed here suggests a higher likelihood of epilepsy.\n\nConsidering the frequency and nature of the abnormalities in the EEG, the most appropriate conclusion is that the patient likely has epilepsy.\n</think>\n\n<answer>B</answer>"}, {"id": "tuev_gped_023_a__e0004", "corpus": "tuev_events", "question": "Which of the following best describes this EEG segment?", "options": {"A": "artifact", "B": "background", "C": "eye movement", "D": "generalized periodic discharges", "E": "periodic lateralized discharges", "F": "spike and sharp wave"}, "frames": 2, "gold": "D (generalized periodic discharges)", "pred": "D (generalized periodic discharges)", "correct": true, "output_tokens": 274, "output": "To determine which option best describes the EEG segment, it's important to evaluate the characteristics of the displayed activity. The EEG traces show a consistent, rhythmic pattern across multiple channels, indicating a widespread or generalized nature. This rules out options like \"periodic lateralized discharges\" (E), which would be localized rather than affecting all channels. Similarly, \"spike and sharp wave\" (F) involves sudden, brief events, not the continuous oscillations observed here.\n\nThe spectrogram also supports the presence of rhythmic activity, with color intensity reflecting frequency content. The pattern appears regular and repetitive, suggesting a specific type of discharge. Generalized periodic discharges (D) are defined by rhythmic patterns that occur across both hemispheres, often seen in certain seizure types. Given the uniformity and spread of the activity across the EEG channels, this aligns with the description of generalized periodic discharges.\n\nOther options such as \"artifact\" (A) can be ruled out because the pattern is too structured to be random noise. \"Background\" (B) typically refers to normal resting state activity without distinct rhythmic features. Eye movement (C) usually causes more transient or focal changes rather than the sustained, rhythmic pattern observed. Therefore, the most accurate description of the EEG segment is generalized periodic discharges.\n</think>\n\n<answer>D</answer>"}, {"id": "tuev_gped_035_a__e0001", "corpus": "tuev_events", "question": "Which of the following best describes this EEG segment?", "options": {"A": "artifact", "B": "background", "C": "eye movement", "D": "generalized periodic discharges", "E": "periodic lateralized discharges", "F": "spike and sharp wave"}, "frames": 2, "gold": "D (generalized periodic discharges)", "pred": "D (generalized periodic discharges)", "correct": true, "output_tokens": 249, "output": "To determine which option best describes the EEG segment, it's important to evaluate the characteristics of the displayed activity. The top part of the image shows multiple rows of wavy lines representing the EEG traces, while the bottom part is a spectrogram indicating frequency content over time. The spectrogram displays a gradient from purple at the top to orange at the bottom, with brighter colors signifying higher power in specific frequency bands.\n\nGeneralized periodic discharges are rhythmic patterns that occur across both hemispheres of the brain. These discharges typically appear as regular, repeating waves in the EEG traces and may be associated with certain types of seizures or abnormal electrical activity. In contrast, periodic lateralized discharges would show similar rhythmicity but confined to one hemisphere. Spike and sharp wave patterns are characterized by sudden, brief increases in amplitude rather than continuous oscillations.\n\nGiven the description of the EEG segment, the presence of rhythmic, widespread activity suggests a pattern consistent with generalized periodic discharges. This interpretation aligns with the observed features in the EEG traces and the corresponding spectrogram. Other options such as artifact, background, eye movement, or spike and sharp wave do not fit the described pattern as well.\n</think>\n\n<answer>D</answer>"}, {"id": "tuev_gped_022_a__e0127", "corpus": "tuev_events", "question": "Which of the following best describes this EEG segment?", "options": {"A": "artifact", "B": "background", "C": "eye movement", "D": "generalized periodic discharges", "E": "periodic lateralized discharges", "F": "spike and sharp wave"}, "frames": 2, "gold": "D (generalized periodic discharges)", "pred": "A (artifact)", "correct": false, "output_tokens": 292, "output": "To determine which option best describes the given EEG segment, it's important to consider the characteristics of each choice. Artifacts in EEG recordings are typically caused by external factors such as muscle activity, electrode issues, or electrical interference. These often appear as irregular or noisy patterns that do not reflect normal brain activity. The description indicates a lot of vertical lines in the raw EEG traces, which may suggest noise or distortion rather than a consistent physiological pattern.\n\nBackground activity refers to the general ongoing brain activity without specific rhythmic features. However, the presence of structured, repeating patterns in the raw EEG suggests something more than typical background activity. Eye movements can produce distinct artifacts, but they usually manifest as horizontal deflections rather than the vertical lines described here. Generalized periodic discharges would show regular, widespread rhythmic activity across multiple channels, while periodic lateralized discharges would be localized to one hemisphere. Neither of these fits the observed pattern.\n\nSpike and sharp waves are brief, high-amplitude events associated with epileptic activity, but the described pattern does not appear to consist of isolated spikes. Instead, the continuous vertical lines suggest a non-neural source of signal contamination. This is consistent with an artifact, particularly if the pattern appears due to poor electrode contact or other technical issues. Given the visual appearance of the raw EEG traces and the absence of clear physiological patterns, the most likely explanation is that the segment represents an artifact.\n</think>\n\n<answer>A</answer>"}, {"id": "hmc_SN030_e00933", "corpus": "hmc", "question": "According to AASM criteria, what sleep stage is the scored epoch?", "options": {"A": "wake", "B": "N1", "C": "N2", "D": "N3", "E": "REM"}, "frames": 4, "gold": "A (wake)", "pred": "A (wake)", "correct": true, "output_tokens": 175, "output": "To determine the sleep stage according to AASM criteria, we must evaluate the EEG patterns in the given epoch. The options include wake, N1, N2, N3, and REM. Wakefulness is characterized by irregular, high-frequency activity with no slow waves or spindles. N1 shows low-amplitude theta waves, N2 includes sleep spindles and K-complexes, N3 features delta waves, and REM has mixed activity with rapid eye movements.\n\nIn the provided frames, the EEG traces display a lot of fast, irregular activity without any clear signs of slow waves, spindles, or K-complexes. This pattern is consistent with wakefulness. The absence of sleep-specific features such as spindles or delta waves further supports this conclusion. Therefore, the scored epoch corresponds to wake.\n</think>\n\n<answer>A</answer>"}, {"id": "hmc_SN117_e00297", "corpus": "hmc", "question": "According to AASM criteria, what sleep stage is the scored epoch?", "options": {"A": "wake", "B": "N1", "C": "N2", "D": "N3", "E": "REM"}, "frames": 4, "gold": "A (wake)", "pred": "A (wake)", "correct": true, "output_tokens": 246, "output": "To determine the sleep stage according to AASM criteria, we must evaluate the EEG patterns in the given frames. The AASM defines five stages: Wake, N1, N2, N3, and REM. Each stage has distinct EEG characteristics. \n\nWakefulness is characterized by irregular, low-amplitude activity with no dominant rhythm. N1 is marked by theta waves (4–7 Hz), which are slower than alpha but faster than delta. N2 includes sleep spindles (12–14 Hz) and K-complexes. N3 features slow-wave or delta activity (0.5–4 Hz). REM sleep resembles wakefulness in EEG appearance but includes rapid eye movements.\n\nIn the provided frames, the EEG traces show wavy lines without clear rhythmic patterns typical of sleep stages. The absence of organized waveforms such as spindles, K-complexes, or delta waves suggests that the brain is not in a sleep state. Instead, the EEG appears more active and variable, consistent with wakefulness. This pattern aligns with the AASM criteria for Wake, where EEG activity is irregular and lacks the structured rhythms seen in other sleep stages.\n</think>\n\n<answer>A</answer>"}, {"id": "hmc_SN051_e00891", "corpus": "hmc", "question": "According to AASM criteria, what sleep stage is the scored epoch?", "options": {"A": "wake", "B": "N1", "C": "N2", "D": "N3", "E": "REM"}, "frames": 4, "gold": "B (N1)", "pred": "C (N2)", "correct": false, "output_tokens": 232, "output": "To determine the sleep stage according to AASM criteria, we must evaluate the EEG patterns and other features such as eye movements or muscle activity. The options include wake, N1, N2, N3, and REM. Each stage has distinct characteristics: wake is characterized by active EEG with no slow waves, N1 shows low amplitude theta waves, N2 includes spindles and K-complexes, N3 is defined by delta waves, and REM resembles wakefulness but with rapid eye movements.\n\nIn this case, the EEG traces show a pattern consistent with N2 sleep. Specifically, there are signs of spindles—brief bursts of rhythmic activity in the 12–15 Hz range—which are a hallmark of N2. Additionally, the presence of K-complexes may be indicated by sharp waveforms followed by slower oscillations. These features align with the AASM criteria for N2 sleep. There is no evidence of delta waves typical of N3, nor do the patterns suggest REM or wakefulness. Therefore, the most accurate classification based on the provided data is N2.\n</think>\n\n<answer>C</answer>"}, {"id": "eegmat_Subject13_1_w006", "corpus": "eegmat", "question": "Is the subject at rest or performing a mental arithmetic task?", "options": {"A": "rest", "B": "mental arithmetic"}, "frames": 2, "gold": "A (rest)", "pred": "A (rest)", "correct": true, "output_tokens": 248, "output": "To determine whether the subject is at rest or performing a mental arithmetic task, we need to analyze the EEG data. During rest, especially with eyes closed, the EEG typically shows more alpha waves in the 8-12 Hz range. Mental arithmetic, on the other hand, involves increased cognitive load and is associated with higher beta wave activity in the 13-30 Hz range.\n\nThe spectrogram in the provided frames shows frequency bands from 1 to 45 Hz, with brighter colors indicating higher power. The color gradient from red to purple suggests that lower frequencies are more prominent. If the subject were performing mental arithmetic, we would expect to see increased power in the higher frequency ranges, particularly in the beta band. However, the spectrogram appears to show more activity in the lower frequency range, which aligns with typical resting state patterns.\n\nAdditionally, the EEG traces themselves appear relatively stable across the frames, without significant changes that would suggest active cognitive processing. This stability further supports the idea of a resting state rather than an active mental task.\n\nBased on the observed patterns in both the spectrogram and the EEG traces, the most consistent interpretation is that the subject is at rest.\n</think>\n\n<answer>A</answer>"}, {"id": "eegmat_Subject13_2_w001", "corpus": "eegmat", "question": "Is the subject at rest or performing a mental arithmetic task?", "options": {"A": "rest", "B": "mental arithmetic"}, "frames": 2, "gold": "B (mental arithmetic)", "pred": "B (mental arithmetic)", "correct": true, "output_tokens": 311, "output": "To determine whether the subject is at rest or performing a mental arithmetic task, we need to analyze the EEG data and spectrogram patterns. During rest, especially with eyes closed, the EEG typically shows more alpha waves in the 8–12 Hz range, which appear as rhythmic activity in the spectrogram. Mental arithmetic, on the other hand, involves increased cognitive load and is associated with higher beta wave activity in the 13–30 Hz range.\n\nThe spectrogram in the provided frames uses color intensity to represent power levels, with brighter colors indicating higher power. The lower part of the spectrogram corresponds to frequencies from 1 to 45 Hz, with red and orange hues representing higher power. If the subject were at rest, the spectrogram would likely show more prominent alpha band activity (lower frequency). However, if the subject is engaged in mental arithmetic, the spectrogram would display increased power in the higher frequency bands, particularly in the beta range.\n\nObserving the spectrogram across the frames, there is a noticeable increase in brightness in the upper frequency regions, suggesting higher power in the beta range. This pattern is consistent with active cognitive processing rather than resting state. Additionally, the EEG traces themselves may reflect more irregular and variable activity during mental tasks compared to the more regular and synchronized patterns seen at rest.\n\nGiven the increased power in the higher frequency bands and the typical association of such patterns with mental arithmetic, the most likely conclusion is that the subject is performing a mental arithmetic task.\n</think>\n\n<answer>B</answer>"}, {"id": "eegmat_Subject13_1_w004", "corpus": "eegmat", "question": "Is the subject at rest or performing a mental arithmetic task?", "options": {"A": "rest", "B": "mental arithmetic"}, "frames": 2, "gold": "A (rest)", "pred": "B (mental arithmetic)", "correct": false, "output_tokens": 285, "output": "To determine whether the subject is at rest or performing a mental arithmetic task, we need to analyze the EEG data and spectrogram patterns. During rest, especially with eyes closed, the EEG typically shows alpha waves in the 8–12 Hz range, which appear as rhythmic activity in the spectrogram. Mental arithmetic, on the other hand, involves increased cognitive load and is associated with higher frequency beta waves (13–30 Hz), particularly in frontal regions.\n\nThe spectrogram in the provided frames uses color intensity to represent power levels, with brighter colors indicating higher power. If the subject were at rest, the spectrogram would likely show more prominent activity in the lower frequency bands, such as alpha. In contrast, if the subject is performing mental arithmetic, the spectrogram should reflect increased power in the higher frequency ranges, corresponding to beta activity.\n\nGiven that the question provides only two frames (at 0.0s and 10.0s), it is reasonable to assume that these are representative of the entire recording. The presence of higher frequency activity in the spectrogram suggests that the subject is engaged in a cognitive task rather than being at rest. This pattern aligns with what is expected during mental arithmetic, where increased beta wave activity is commonly observed.\n\nBased on this reasoning, the most consistent interpretation is that the subject is performing a mental arithmetic task.\n</think>\n\n<answer>B</answer>"}, {"id": "tusl_aaaaamhb_s001_t001_e0000", "corpus": "tusl_events", "question": "Does this EEG segment show normal background, slowing, or a seizure?", "options": {"A": "normal background", "B": "slowing", "C": "seizure"}, "frames": 2, "gold": "C (seizure)", "pred": "C (seizure)", "correct": true, "output_tokens": 234, "output": "To determine whether the EEG segment shows normal background, slowing, or a seizure, it's important to understand the characteristics of each. Normal background activity typically features regular, rhythmic waves without significant abnormalities. Slowing is marked by slower wave patterns such as delta or theta waves, often seen in drowsiness or certain pathologies. A seizure, on the other hand, is characterized by abnormal, high-amplitude spikes or sharp waves that are irregular and may appear as sudden bursts.\n\nIn the provided EEG, the raw traces display rapid, high-frequency oscillations with many peaks and valleys. These patterns suggest increased electrical activity across multiple channels. The spectrogram also supports this observation, showing high power in higher frequency bands, indicated by red and orange colors. This combination of high-frequency activity and widespread involvement across channels is more consistent with seizure activity than with normal background or slowing.\n\nSeizures often present with generalized spike-wave discharges or other abnormal patterns that differ from the typical slow waves seen in slowing. The presence of numerous, synchronized spikes in the EEG traces further supports the interpretation of seizure activity rather than normal background or slowing.\n</think>\n\n<answer>C</answer>"}, {"id": "tusl_aaaaakbz_s005_t000_e0002", "corpus": "tusl_events", "question": "Does this EEG segment show normal background, slowing, or a seizure?", "options": {"A": "normal background", "B": "slowing", "C": "seizure"}, "frames": 2, "gold": "B (slowing)", "pred": "B (slowing)", "correct": true, "output_tokens": 259, "output": "Looking at the EEG segment, the key is to determine whether it shows normal background, slowing, or a seizure. The spectrogram in the lower part of the image uses color to represent frequency power, with brighter colors indicating higher power. In this case, the spectrogram shows a gradient from purple at the top to red/orange at the bottom. Since the y-axis represents frequency, with lower frequencies at the bottom and higher frequencies at the top, the red/orange areas indicate higher power in the lower frequency bands.\n\nNormal background activity typically includes alpha waves (8–12 Hz), which would appear in the middle of the frequency range. Slowing is characterized by increased power in lower frequency bands such as theta (4–7 Hz) or delta (0.5–3 Hz). A seizure, on the other hand, would usually show abnormal patterns like sharp spikes or bursts of high-frequency activity.\n\nIn the given spectrogram, the majority of the power is concentrated in the lower frequency range, as indicated by the red/orange colors at the bottom. This suggests an increase in slow wave activity, consistent with slowing rather than normal background or seizure activity. The absence of sharp spikes or irregularities in the EEG trace also supports this interpretation.\n</think>\n\n<answer>B</answer>"}, {"id": "tusl_aaaaabiw_s018_t000_e0006", "corpus": "tusl_events", "question": "Does this EEG segment show normal background, slowing, or a seizure?", "options": {"A": "normal background", "B": "slowing", "C": "seizure"}, "frames": 2, "gold": "B (slowing)", "pred": "A (normal background)", "correct": false, "output_tokens": 339, "output": "To determine whether the EEG segment shows normal background, slowing, or a seizure, it's important to understand the characteristics of each. Normal background activity typically features regular, rhythmic waves such as alpha or beta rhythms. Slowing is indicated by increased slow wave activity, particularly in the delta or theta range. A seizure is marked by abnormal, high-amplitude spikes or irregular patterns.\n\nIn the provided frames, the top part of the display shows the raw EEG traces, which appear as wavy lines. The bottom part is a spectrogram that represents frequency content over time, with brighter colors indicating higher power. In the first frame, the spectrogram shows a mix of red and purple, suggesting moderate power across frequencies. However, the key observation is in the EEG traces themselves.\n\nSeizure activity is often characterized by sharp, high-amplitude spikes or bursts of abnormal activity. In contrast, normal background activity would show more consistent and rhythmic patterns without sudden changes. Slowing would be evident through an increase in slower waveforms, such as delta waves.\n\nUpon closer inspection of the EEG traces, there are no clear signs of sharp spikes or bursts typical of a seizure. Instead, the pattern appears to be relatively smooth and continuous, without the irregularities associated with seizure activity. This suggests that the activity is not indicative of a seizure. Additionally, the absence of prominent slow waves rules out slowing as the primary feature.\n\nGiven the absence of abnormal spikes or bursts and the lack of significant slow wave activity, the most likely interpretation is that the EEG shows normal background activity. The overall pattern is consistent with typical brainwave activity without any indication of pathological changes.\n</think>\n\n<answer>A</answer>"}]};
+const BUNDLE = {"recordings":[]};
+let RECORDINGS = (BUNDLE && BUNDLE.recordings) || [];
+const EXAMPLES = RESULTS.examples;
+
+/* ==========================================================================
+   1. CONFIG
+   ========================================================================== */
+const CFG = {
+  pxPerMm: 96 / 25.4,
+  labelW: 74,
+  padTop: 10,
+  padBottom: 30,
+  padRight: 14,
+  chainGap: 8,                     // extra px between montage chains
+  timebases: [5, 10, 15, 20, 30],  // seconds per page
+  defaultTimebase: 10,
+  sensitivities: [2, 3, 5, 7, 10, 15, 20, 30],  // microvolts per mm
+  defaultSensitivity: 7,
+  highpass: [
+    {v: 0,   t: 'off'}, {v: 0.5, t: '0.5 Hz'}, {v: 1,  t: '1 Hz'},
+    {v: 1.6, t: '1.6 Hz'}, {v: 5, t: '5 Hz'}
+  ],
+  lowpass: [
+    {v: 0, t: 'off'}, {v: 15, t: '15 Hz'}, {v: 35, t: '35 Hz'},
+    {v: 45, t: '45 Hz'}, {v: 70, t: '70 Hz'}
+  ],
+  defaultHP: 1,
+  defaultLP: 70,
+  notchOptions: [{v: 0, t: 'off'}, {v: 50, t: '50 Hz'}, {v: 60, t: '60 Hz'}],
+  defaultNotch: 60,
+  collapseWorklistOver: 40,        // above this many recordings, fold the worklist
+  minMontageRows: 4,               // below this, fall back to a montage that shows more
+  /* Fallback order. 'ref-raw' before 'ref-avg': re-referencing four mastoid-referenced
+     PSG channels to their own average distorts them, and AASM staging is read from
+     F4-M1 / C4-M1 / O2-M1 as recorded. */
+  montageFallback: ['ref-raw', 'ref-avg', 'bip-long', 'bip-trans'],
+  calibrationUv: 50,
+  calibrationBoxW: 90,
+  minDragPx: 4,
+  overviewHeight: 34,
+
+};
+
+const CORPUS = {
+  tuab:        {code: 'TUAB',   title: 'TUAB — Normal vs. abnormal'},
+  tusz:        {code: 'TUSZ',   title: 'TUSZ — Seizure detection'},
+  tuep:        {code: 'TUEP',   title: 'TUEP — EEG evidence supporting epilepsy'},
+  tuev_events: {code: 'TUEV',   title: 'TUEV — Event classification'},
+  tuev:        {code: 'TUEV',   title: 'TUEV — Event classification'},
+  hmc:         {code: 'HMC',    title: 'HMC — Sleep staging'},
+  eegmat:      {code: 'EEGMAT', title: 'EEGMAT — Rest vs. mental arithmetic'},
+  tusl_events: {code: 'TUSL',   title: 'TUSL — Normal background vs. slowing vs. seizure'},
+  tusl:        {code: 'TUSL',   title: 'TUSL — Normal background vs. slowing vs. seizure'}
+};
+const CORPUS_ORDER = ['tuab', 'tusz', 'tuep', 'tuev_events', 'tuev', 'hmc', 'eegmat', 'tusl_events', 'tusl'];
+/* ---- montages ------------------------------------------------------------ */
+const MONTAGES = {
+  'bip-long': {
+    name: 'Longitudinal bipolar (double banana)',
+    chains: [
+      [['Fp1','F7'],['F7','T3'],['T3','T5'],['T5','O1']],
+      [['Fp2','F8'],['F8','T4'],['T4','T6'],['T6','O2']],
+      [['Fp1','F3'],['F3','C3'],['C3','P3'],['P3','O1']],
+      [['Fp2','F4'],['F4','C4'],['C4','P4'],['P4','O2']],
+      [['Fz','Cz'],['Cz','Pz']]
+    ]
+  },
+  'bip-trans': {
+    name: 'Transverse bipolar',
+    chains: [
+      [['F7','F3'],['F3','Fz'],['Fz','F4'],['F4','F8']],
+      [['T3','C3'],['C3','Cz'],['Cz','C4'],['C4','T4']],
+      [['T5','P3'],['P3','Pz'],['Pz','P4'],['P4','T6']]
+    ]
+  },
+  'ref-avg': {
+    name: 'Referential — average reference',
+    single: ['Fp1','Fp2','F7','F3','Fz','F4','F8','T3','C3','Cz','C4','T4','T5','P3','Pz','P4','T6','O1','O2'],
+    avg: true
+  },
+  'ref-raw': {
+    name: 'Referential — as recorded',
+    single: ['Fp1','Fp2','F7','F3','Fz','F4','F8','T3','C3','Cz','C4','T4','T5','P3','Pz','P4','T6','O1','O2'],
+    avg: false
+  }
+};
+const DEFAULT_MONTAGE = 'bip-long';
+
+
+
+/* ==========================================================================
+   2. STATE
+   ========================================================================== */
+const S = {
+  exIdx: 0,
+  montage: DEFAULT_MONTAGE, montagePref: DEFAULT_MONTAGE, montageFor: null,
+  timebase: CFG.defaultTimebase, sens: CFG.defaultSensitivity,
+  hp: CFG.defaultHP, lp: CFG.defaultLP, notch: CFG.defaultNotch,
+  page: 0, selChannels: new Set(),
+  blind: false, revealed: new Set(),
+  collapsed: null, lastDs: null,
+  decoded: new Map(), filtered: new Map(),
+  comments: {}
+};
+const store = (() => {
+  let ok = false;
+  try { localStorage.setItem('__t','1'); localStorage.removeItem('__t'); ok = true; } catch(e) { ok = false; }
+  const mem = {};
+  return {
+    get(k){ try { return ok ? localStorage.getItem(k) : mem[k]; } catch(e){ return mem[k]; } },
+    set(k,v){ try { if(ok) localStorage.setItem(k,v); else mem[k]=v; } catch(e){ mem[k]=v; } },
+    persistent: ok
+  };
+})();
+const SAVE_KEY = 'eeg-review-comments';
+function save() { store.set(SAVE_KEY, JSON.stringify(S.comments)); }
+function restore() { try { S.comments = JSON.parse(store.get(SAVE_KEY) || '{}'); } catch (e) { S.comments = {}; } }
+
+/* ---- example ↔ signal matching ----------------------------------------- */
+function stemOf(exId) {                          // "tuab_aaaaajce_s001_t000" -> "aaaaajce_s001_t000"
+  const m = /^(tuab|tusz|tuep|tuev|hmc|eegmat|tusl)_(.+)$/i.exec(exId);
+  return (m ? m[2] : exId).toLowerCase();
+}
+const REC_BY_ID = new Map();
+function indexRecordings() {
+  REC_BY_ID.clear();
+  RECORDINGS.forEach(r => REC_BY_ID.set(String(r.id).toLowerCase(), r));
+}
+function recordingFor(ex) {
+  if (!RECORDINGS.length) return null;
+  const wanted = String(ex.signal_id || ex.id).toLowerCase();
+  if (REC_BY_ID.has(wanted)) return REC_BY_ID.get(wanted);
+  const stem = stemOf(ex.id);
+  return RECORDINGS.find(r => String(r.id).toLowerCase().includes(stem)) || null;
+}
+function ex() { return EXAMPLES[S.exIdx]; }
+function rec() { return recordingFor(ex()); }
+
+/* ==========================================================================
+   3. SIGNAL LAYER
+   ========================================================================== */
+/* ==========================================================================
+   3. SIGNAL LAYER
+   ========================================================================== */
+function decode(rec) {
+  if (S.decoded.has(rec.id)) return S.decoded.get(rec.id);
+  const bin = atob(rec.data);
+  const buf = new ArrayBuffer(bin.length);
+  const u8 = new Uint8Array(buf);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const i16 = new Int16Array(buf);
+  const n = rec.n_samples, out = [];
+  for (let c = 0; c < rec.channels.length; c++) {
+    const a = new Float32Array(n);
+    for (let i = 0; i < n; i++) a[i] = i16[c * n + i] * rec.scale;
+    out.push(a);
+  }
+  S.decoded.set(rec.id, out);
+  return out;
+}
+
+/* RBJ biquad, applied forward then backward (zero phase) */
+function biquad(type, f0, fs, Q) {
+  const w0 = 2 * Math.PI * f0 / fs, c = Math.cos(w0), s = Math.sin(w0), alpha = s / (2 * Q);
+  let b0, b1, b2, a0, a1, a2;
+  if (type === 'lp')      { b0=(1-c)/2; b1=1-c;    b2=(1-c)/2; a0=1+alpha; a1=-2*c; a2=1-alpha; }
+  else if (type === 'hp') { b0=(1+c)/2; b1=-(1+c); b2=(1+c)/2; a0=1+alpha; a1=-2*c; a2=1-alpha; }
+  else                    { b0=1;       b1=-2*c;   b2=1;       a0=1+alpha; a1=-2*c; a2=1-alpha; } // notch
+  return {b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0};
+}
+function applyOnce(x, k, reverse) {
+  const n = x.length, y = new Float32Array(n);
+  let x1=0,x2=0,y1=0,y2=0;
+  const first = reverse ? n-1 : 0, step = reverse ? -1 : 1;
+  for (let m = 0; m < n; m++) {
+    const i = first + m*step, xi = x[i];
+    const yi = k.b0*xi + k.b1*x1 + k.b2*x2 - k.a1*y1 - k.a2*y2;
+    x2=x1; x1=xi; y2=y1; y1=yi; y[i]=yi;
+  }
+  return y;
+}
+function filtfilt(x, k) { return applyOnce(applyOnce(x, k, false), k, true); }
+
+function filteredSignals(rec) {
+  const key = [rec.id, S.hp, S.lp, S.notch].join('|');
+  if (S.filtered.has(key)) return S.filtered.get(key);
+  const raw = decode(rec), fs = rec.sfreq;
+  const kernels = [];
+  if (S.hp > 0)    kernels.push(biquad('hp', S.hp, fs, 0.707));
+  if (S.lp > 0 && S.lp < fs/2) kernels.push(biquad('lp', S.lp, fs, 0.707));
+  if (S.notch > 0 && S.notch < fs/2) kernels.push(biquad('notch', S.notch, fs, 30));
+  const out = raw.map(ch => kernels.reduce((sig, k) => filtfilt(sig, k), ch));
+  S.filtered.set(key, out);
+  return out;
+}
+
+/* Build the display rows for the active montage. */
+function montageRows(rec) {
+  const m = MONTAGES[S.montage], sig = filteredSignals(rec);
+  const idx = {}; rec.channels.forEach((c, i) => idx[c] = i);
+  const n = rec.n_samples;
+  const rows = [];
+  if (m.single) {
+    let avg = null;
+    if (m.avg) {
+      avg = new Float32Array(n);
+      const present = m.single.filter(c => c in idx);
+      for (const c of present) { const a = sig[idx[c]]; for (let i=0;i<n;i++) avg[i] += a[i]; }
+      for (let i=0;i<n;i++) avg[i] /= present.length;
+    }
+    for (const c of m.single) {
+      if (!(c in idx)) continue;
+      const a = sig[idx[c]];
+      let d;
+      if (avg) { d = new Float32Array(n); for (let i=0;i<n;i++) d[i] = a[i]-avg[i]; }
+      else d = a;
+      rows.push({name: c + (m.avg ? '-Avg' : ''), members: [c], data: d, gapAfter: false});
+    }
+  } else {
+    m.chains.forEach((chain, ci) => {
+      chain.forEach((pair, pi) => {
+        const [a, b] = pair;
+        if (!(a in idx) || !(b in idx)) return;
+        const A = sig[idx[a]], B = sig[idx[b]], d = new Float32Array(n);
+        for (let i=0;i<n;i++) d[i] = A[i]-B[i];
+        rows.push({name: a+'-'+b, members: [a,b], data: d,
+                   gapAfter: pi === chain.length-1 && ci < m.chains.length-1});
+      });
+    });
+  }
+  return rows;
+}
+
+
+/* ==========================================================================
+   4. RENDERING
+   ========================================================================== */
+const cv = document.getElementById('trace');
+const ctx = cv.getContext('2d');
+let LAYOUT = {rows:[], rowY:[], plotX0:0, plotX1:0, w:0, h:0};
+
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function draw() {
+  const r = rec(), wrap = document.getElementById('canvasWrap');
+  const dpr = window.devicePixelRatio || 1;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  LAYOUT.w = w; LAYOUT.h = h;
+
+  ctx.fillStyle = css('--paper'); ctx.fillRect(0, 0, w, h);
+
+  const rows = montageRows(r);
+  const x0 = CFG.labelW, x1 = w - CFG.padRight;
+  LAYOUT.rows = rows; LAYOUT.plotX0 = x0; LAYOUT.plotX1 = x1;
+
+  const gaps = rows.filter(rw => rw.gapAfter).length;
+  const usable = h - CFG.padTop - CFG.padBottom - gaps * CFG.chainGap;
+  const rowH = usable / rows.length;
+  let y = CFG.padTop + rowH / 2;
+  LAYOUT.rowY = [];
+  for (const rw of rows) { LAYOUT.rowY.push(y); y += rowH + (rw.gapAfter ? CFG.chainGap : 0); }
+  LAYOUT.rowH = rowH;
+
+  const dur = r.n_samples / r.sfreq;
+  const t0 = S.page * S.timebase;
+  const t1 = Math.min(t0 + S.timebase, dur);
+  LAYOUT.t0 = t0; LAYOUT.t1 = t0 + S.timebase;
+  const pxPerSec = (x1 - x0) / S.timebase;
+  const uvToPx = CFG.pxPerMm / S.sens;
+
+  
+
+
+  /* grid: 1 s light, 5 s strong */
+  ctx.lineWidth = 1;
+  for (let s = 0; s <= S.timebase; s++) {
+    const x = x0 + s * pxPerSec;
+    ctx.strokeStyle = (s % 5 === 0) ? css('--grid-strong') : css('--grid');
+    ctx.beginPath(); ctx.moveTo(x + .5, CFG.padTop - 4); ctx.lineTo(x + .5, h - CFG.padBottom + 4); ctx.stroke();
+  }
+
+  /* traces */
+  ctx.lineWidth = 1;
+  const clampPx = rowH * 2.2;
+  rows.forEach((rw, i) => {
+    const yc = LAYOUT.rowY[i];
+    const selected = false;
+    ctx.strokeStyle = selected ? css('--accent') : css('--trace');
+    ctx.lineWidth = selected ? 1.4 : 1;
+    ctx.beginPath();
+    const i0 = Math.max(0, Math.floor(t0 * r.sfreq));
+    const i1 = Math.min(r.n_samples - 1, Math.ceil(LAYOUT.t1 * r.sfreq));
+    const spp = (i1 - i0) / (x1 - x0);      // samples per pixel
+    if (spp > 2) {                           // min/max decimation
+      for (let px = 0; px <= x1 - x0; px++) {
+        const s0 = i0 + Math.floor(px * spp), s1 = Math.min(i1, i0 + Math.floor((px+1) * spp));
+        let mn = Infinity, mx = -Infinity;
+        for (let s = s0; s <= s1; s++) { const v = rw.data[s]; if (v < mn) mn = v; if (v > mx) mx = v; }
+        const yA = yc - Math.max(-clampPx, Math.min(clampPx, mx * uvToPx));
+        const yB = yc - Math.max(-clampPx, Math.min(clampPx, mn * uvToPx));
+        if (px === 0) ctx.moveTo(x0, yA); else ctx.lineTo(x0 + px, yA);
+        ctx.lineTo(x0 + px, yB);
+      }
+    } else {
+      for (let s = i0; s <= i1; s++) {
+        const x = x0 + (s / r.sfreq - t0) * pxPerSec;
+        const yv = yc - Math.max(-clampPx, Math.min(clampPx, rw.data[s] * uvToPx));
+        if (s === i0) ctx.moveTo(x, yv); else ctx.lineTo(x, yv);
+      }
+    }
+    ctx.stroke();
+  });
+
+  /* labels */
+  ctx.font = '11px ' + css('--mono');
+  ctx.textBaseline = 'middle';
+  rows.forEach((rw, i) => {
+    const selected = false;
+    if (selected) {
+      ctx.fillStyle = css('--accent-soft');
+      ctx.fillRect(2, LAYOUT.rowY[i] - rowH/2, CFG.labelW - 6, rowH);
+    }
+    ctx.fillStyle = selected ? css('--accent') : css('--muted');
+    ctx.fillText(rw.name, 6, LAYOUT.rowY[i]);
+  });
+
+  /* calibration bar: CFG.calibrationUv over 1 s, drawn inside the plot, bottom-right */
+  const calH = Math.min(CFG.calibrationUv * uvToPx, LAYOUT.rowH * 1.6);
+  const cbx = x1 - CFG.calibrationBoxW, cby = h - CFG.padBottom - 6;
+  ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cbx, cby); ctx.lineTo(cbx, cby - calH); ctx.lineTo(cbx + pxPerSec, cby - calH);
+  ctx.stroke();
+  ctx.fillStyle = css('--muted'); ctx.font = '10px ' + css('--mono'); ctx.textBaseline = 'top';
+  ctx.fillText(CFG.calibrationUv + ' µV / 1 s', cbx + 3, cby - calH - 12);
+
+  /* time axis (skip anything that would run into the calibration legend) */
+  ctx.textBaseline = 'top';
+  const stepS = S.timebase > 10 ? 5 : 1;
+  for (let s = 0; s <= S.timebase; s += stepS) {
+    const x = x0 + s * pxPerSec;
+    if (x > x1 - 30) continue;
+    ctx.fillText(fmtTime(t0 + s), x - 14, h - CFG.padBottom + 8);
+  }
+
+  drawOverview();
+  document.getElementById('pageLabel').textContent =
+    `${fmtTime(t0)} – ${fmtTime(t1)}  of  ${fmtTime(dur)}   ·   page ${S.page+1}/${nPages()}`;
+}
+
+function fmtTime(s) {
+  const m = Math.floor(s / 60), ss = s - m * 60;
+  return `${String(m).padStart(2,'0')}:${ss.toFixed(1).padStart(4,'0')}`;
+}
+function nPages() { const r = rec(); return Math.max(1, Math.ceil((r.n_samples / r.sfreq) / S.timebase)); }
+
+/* ---- overview strip ---- */
+const ov = document.getElementById('overview');
+const octx = ov.getContext('2d');
+function drawOverview() {
+  const r = rec(), dpr = window.devicePixelRatio || 1;
+  const w = ov.clientWidth, h = CFG.overviewHeight;
+  ov.width = w * dpr; ov.height = h * dpr; ov.style.height = h + 'px';
+  octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  octx.fillStyle = css('--panel'); octx.fillRect(0, 0, w, h);
+  const dur = r.n_samples / r.sfreq;
+  /* tick marks each 10 s */
+  octx.strokeStyle = css('--grid-strong'); octx.lineWidth = 1;
+  for (let s = 0; s <= dur; s += 10) {
+    const x = s / dur * w;
+    octx.beginPath(); octx.moveTo(x+.5, h-7); octx.lineTo(x+.5, h); octx.stroke();
+  }
+  const px0 = LAYOUT.t0 / dur * w, px1 = Math.min(LAYOUT.t1, dur) / dur * w;
+  octx.fillStyle = css('--mark'); octx.fillRect(px0, 0, Math.max(px1 - px0, 2), h);
+  octx.strokeStyle = css('--accent'); octx.lineWidth = 1.5;
+  octx.strokeRect(px0 + .5, .5, Math.max(px1 - px0, 2), h - 1);
+}
+
+
+function drawOrPlaceholder() {
+  const r = rec(), ph = document.getElementById('placeholder');
+  const e = ex();
+  document.querySelectorAll('#controls select, #btnPrev, #btnNext').forEach(x => x.disabled = !r);
+  if (!r) {
+    ph.innerHTML = `<div><b>Signal not loaded for this example</b><br>` +
+      `The EEG for <code>${e.id}</code> is not in this file yet.<br>` +
+      `Add a recording whose <code>id</code> is <code>${e.id}</code> (or contains <code>${stemOf(e.id)}</code>) ` +
+      `to recordings.json and rebuild, or use <b>Load recordings…</b>.<br>` +
+      `<span style="font-size:11px">${e.frames} frames were shown to the model.</span></div>`;
+    ph.classList.add('on');
+    document.getElementById('pageLabel').textContent = '—';
+    drawOverviewEmpty();
+    return;
+  }
+  ph.classList.remove('on');
+  draw();
+}
+function drawOverviewEmpty() {
+  const dpr = window.devicePixelRatio || 1, w = ov.clientWidth, h = CFG.overviewHeight;
+  ov.width = w * dpr; ov.height = h * dpr; ov.style.height = h + 'px';
+  octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  octx.fillStyle = css('--panel'); octx.fillRect(0, 0, w, h);
+}
+ov.addEventListener('click', e => {
+  const r = rec(); if (!r) return;
+  const dur = r.n_samples / r.sfreq;
+  const x = e.clientX - ov.getBoundingClientRect().left;
+  S.page = Math.min(nPages() - 1, Math.max(0, Math.floor(x / ov.clientWidth * dur / S.timebase)));
+  draw();
+});
+
+/* ==========================================================================
+   5. UI
+   ========================================================================== */
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') n.className = v;
+    else if (k === 'html') n.innerHTML = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined && v !== false) n.setAttribute(k, v);
+  }
+  kids.flat().forEach(c => n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+  return n;
+}
+function selectCtl(label, options, value, onChange) {
+  const s = el('select', {onchange: e => onChange(e.target.value)});
+  options.forEach(o => {
+    const opt = el('option', {value: o.v}, o.t);
+    if (String(o.v) === String(value)) opt.selected = true;
+    s.appendChild(opt);
+  });
+  return el('div', {class: 'ctl'}, el('label', {}, label), s);
+}
+
+
+function corpusOf(e) { return CORPUS[e.corpus] || {code: e.corpus.toUpperCase(), title: e.corpus}; }
+function letterOf(s) { const m = /^([A-Z])/.exec(String(s || '')); return m ? m[1] : null; }
+function isRevealed(e) { return !S.blind || S.revealed.has(e.id); }
+
+function renderWorklist() {
+  const w = document.getElementById('worklist');
+  const scroll = w.scrollTop;
+  w.innerHTML = '';
+  const nOk = EXAMPLES.filter(e => e.correct).length;
+  w.appendChild(el('div', {id: 'progress'},
+    `${EXAMPLES.length} examples`,
+    el('div', {}, S.blind ? 'verdicts hidden (blind mode)' : `${nOk} correct · ${EXAMPLES.length - nOk} wrong`)));
+  const byC = {};
+  EXAMPLES.forEach((e, i) => (byC[e.corpus] ||= []).push([e, i]));
+  const order = CORPUS_ORDER.filter(c => byC[c]).concat(Object.keys(byC).filter(c => !CORPUS_ORDER.includes(c)));
+  const active = ex();
+  if (S.collapsed === null) {
+    S.collapsed = new Set(EXAMPLES.length > CFG.collapseWorklistOver ? order.filter(c => c !== active.corpus) : []);
+    S.lastDs = active.corpus;
+  }
+  if (active.corpus !== S.lastDs) { S.collapsed.delete(active.corpus); S.lastDs = active.corpus; }
+  for (const c of order) {
+    const rows = byC[c], shut = S.collapsed.has(c);
+    w.appendChild(el('button', {class: 'wl-head' + (shut ? ' closed' : ''),
+      onclick: () => { S.collapsed.has(c) ? S.collapsed.delete(c) : S.collapsed.add(c); renderWorklist(); }},
+      el('span', {class: 'caret'}, '▾'), el('span', {class: 'ttl'}, corpusOf(rows[0][0]).title),
+      el('span', {class: 'cnt'}, String(rows.length))));
+    const group = el('div', {class: 'wl-group' + (shut ? ' closed' : '')});
+    for (const [e, i] of rows) {
+      const rev = isRevealed(e);
+      const hasSig = !!recordingFor(e);
+      group.appendChild(el('button', {class: 'wl-item' + (i === S.exIdx ? ' active' : ''),
+        title: hasSig ? '' : 'signal not loaded',
+        onclick: () => { S.exIdx = i; S.page = 0; renderAll(); }},
+        el('span', {class: 'res ' + (rev ? (e.correct ? 'ok' : 'bad') : '')}, rev ? (e.correct ? '✓' : '✗') : '·'),
+        el('span', {}, el('div', {class: 't'}, e.id + (hasSig ? '' : ' ⌀')),
+                       el('div', {class: 's'}, rev ? `gold ${e.gold} · model ${e.pred}` : `${e.frames} frames`))));
+    }
+    w.appendChild(group);
+  }
+  w.scrollTop = scroll;
+  const cur = w.querySelector('.wl-item.active'); if (cur) cur.scrollIntoView({block: 'nearest'});
+}
+
+function renderQuestion() {
+  const e = ex(), r = rec();
+  document.getElementById('dsBadge').textContent = corpusOf(e).code;
+  const q = document.getElementById('question');
+  q.innerHTML = '';
+  q.append(el('b', {}, e.question));
+  if (r && r.note) q.append(el('span', {class: 'note'}, '· ' + r.note));
+  if (r && r.source) q.append(el('span', {class: 'note'}, '· ' + r.source));
+}
+
+function parseOutput(text) {
+  let t = String(text || '');
+  const ans = /<answer>\s*([^<]*?)\s*<\/answer>/i.exec(t);
+  t = t.replace(/<\/?think>/gi, '').replace(/<answer>[\s\S]*?<\/answer>/i, '').trim();
+  const paras = t.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  return {paras, answer: ans ? ans[1].trim() : null};
+}
+
+function renderReview() {
+  const e = ex(), R = document.getElementById('review');
+  const rev = isRevealed(e);
+  const gold = letterOf(e.gold), pred = letterOf(e.pred);
+  R.innerHTML = '';
+
+  const s1 = el('div', {class: 'sec'}, el('h3', {}, 'Question'));
+  s1.append(el('p', {class: 'rv-q'}, e.question));
+  const opts = el('div', {class: 'rv-opts'});
+  Object.entries(e.options).forEach(([k, v]) => {
+    const row = el('div', {class: 'rv-opt' + (rev && k === gold ? ' gold' : '') + (rev && k === pred ? ' pred' : '')},
+      el('span', {class: 'k'}, k), el('span', {}, v));
+    if (rev && k === gold) row.append(el('span', {class: 'tag gold'}, 'correct answer'));
+    if (rev && k === pred) row.append(el('span', {class: 'tag pred'}, 'model'));
+    opts.append(row);
+  });
+  s1.append(opts);
+  if (rev) s1.append(el('span', {class: 'verdict ' + (e.correct ? 'ok' : 'bad')},
+                       e.correct ? '✓ model was correct' : `✗ model was wrong — answered ${e.pred}, correct is ${e.gold}`));
+  else s1.append(el('button', {class: 'ghost', onclick: () => { S.revealed.add(e.id); renderAll(); }},
+                    'Reveal the correct answer and the model\'s verdict'));
+  R.append(s1);
+
+  const s2 = el('div', {class: 'sec'}, el('h3', {}, 'Model reasoning'));
+  const {paras, answer} = parseOutput(e.output);
+  const box = el('div', {class: 'rv-think' + (rev ? '' : ' blur')});
+  paras.forEach(p => box.append(el('p', {}, p)));
+  if (answer) box.append(el('div', {class: 'ans'}, `Answer: ${answer}` + (e.options[answer] ? ` — ${e.options[answer]}` : '')));
+  s2.append(box);
+  if (!rev) s2.append(el('div', {class: 'hint'}, 'Hidden in blind mode so you can read the EEG first. Reveal above.'));
+  s2.append(el('div', {class: 'rv-meta'}, el('span', {}, `${e.frames} frames shown`), el('span', {}, `${e.output_tokens} output tokens`)));
+  R.append(s2);
+
+  const s3 = el('div', {class: 'sec rv-note'}, el('h3', {}, 'Your comment (optional)'));
+  const ta = el('textarea', {placeholder: 'e.g. "the reasoning describes the picture, not the EEG" · "correct answer for the wrong reason" · "the model missed the phase reversal at F7"',
+    onchange: ev => { S.comments[e.id] = ev.target.value; save(); }});
+  ta.value = S.comments[e.id] || '';
+  s3.append(ta, el('div', {class: 'hint'}, 'Saved automatically in this browser. Export comments sends them back as a JSON file.'));
+  R.append(s3);
+
+  const foot = el('div', {style: 'display:flex;gap:8px;margin-top:6px'},
+    el('button', {class: 'ghost', onclick: () => step(-1)}, 'Previous'),
+    el('button', {class: 'primary', onclick: () => step(1)}, 'Next example'));
+  R.append(foot);
+}
+
+function renderControls() {
+  const c = document.getElementById('controls');
+  c.innerHTML = '';
+  c.append(
+    selectCtl('Montage', Object.entries(MONTAGES).map(([k, m]) => ({v: k, t: m.name})), S.montage,
+      v => { S.montage = S.montagePref = v; drawOrPlaceholder(); }),
+    selectCtl('Sensitivity', CFG.sensitivities.map(v => ({v, t: v + ' µV/mm'})), S.sens, v => { S.sens = +v; drawOrPlaceholder(); }),
+    selectCtl('Time base', CFG.timebases.map(v => ({v, t: v + ' s/page'})), S.timebase, v => { S.timebase = +v; S.page = 0; drawOrPlaceholder(); }),
+    selectCtl('HP', CFG.highpass.map(o => ({v: o.v, t: o.t})), S.hp, v => { S.hp = +v; drawOrPlaceholder(); }),
+    selectCtl('LP', CFG.lowpass.map(o => ({v: o.v, t: o.t})), S.lp, v => { S.lp = +v; drawOrPlaceholder(); }),
+    selectCtl('Notch', CFG.notchOptions.map(o => ({v: o.v, t: o.t})), S.notch, v => { S.notch = +v; drawOrPlaceholder(); })
+  );
+}
+function step(d) { S.exIdx = Math.min(EXAMPLES.length - 1, Math.max(0, S.exIdx + d)); S.page = 0; renderAll(); }
+/* A montage is only usable if the recording carries the electrodes it needs. HMC is
+   polysomnography - F4, C4, O2, C3 only - so longitudinal bipolar derives the single
+   pair F4-C4 and transverse bipolar derives nothing at all. Honour the clinician's
+   chosen montage wherever it works, and fall back to the one that shows the most
+   channels where it does not. Re-resolved only when the recording changes, so an
+   explicit choice is never overridden mid-recording. */
+function resolveMontage() {
+  const r = rec();
+  if (!r || S.montageFor === r.id) return;
+  S.montageFor = r.id;
+  const rowsUnder = m => { const o = S.montage; S.montage = m; 
+                           const n = montageRows(r).length; S.montage = o; return n; };
+  if (rowsUnder(S.montagePref) >= CFG.minMontageRows) { S.montage = S.montagePref; return; }
+  S.montage = CFG.montageFallback.find(m => rowsUnder(m) >= CFG.minMontageRows)
+           || CFG.montageFallback.reduce((b, m) => rowsUnder(m) > rowsUnder(b) ? m : b,
+                                         S.montagePref);
+}
+
+
+function renderAll() {
+  if (rec()) resolveMontage();
+  renderControls(); renderQuestion(); renderWorklist(); renderReview(); drawOrPlaceholder();
+}
+
+/* ==========================================================================
+   6. EXPORT / LOAD / THEME / HELP / KEYS
+   ========================================================================== */
+function download(name, text, mime) {
+  const b = new Blob([text], {type: mime}), u = URL.createObjectURL(b), a = document.createElement('a');
+  a.href = u; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 500);
+}
+document.getElementById('btnExport').onclick = () => {
+  const name = prompt('Your name or initials (recorded in the file):', '') || 'anon';
+  const p = {reviewer: name, checkpoint: RESULTS.checkpoint, exported_at: new Date().toISOString(),
+             comments: EXAMPLES.map(e => ({id: e.id, corpus: e.corpus, gold: e.gold, pred: e.pred, correct: e.correct,
+                                           comment: S.comments[e.id] || ''})).filter(c => c.comment)};
+  download(`eeg-review-comments_${name.replace(/\W+/g, '')}_${new Date().toISOString().slice(0, 10)}.json`,
+           JSON.stringify(p, null, 2), 'application/json');
+};
+document.getElementById('btnLoad').onclick = () => document.getElementById('fileRec').click();
+document.getElementById('fileRec').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const b = JSON.parse(rd.result), recs = b.recordings || b;
+      if (!Array.isArray(recs)) throw new Error('no "recordings" array');
+      RECORDINGS = recs; indexRecordings(); S.decoded.clear(); S.filtered.clear(); S.montageFor = null; S.page = 0;
+      renderAll();
+    } catch (err) { alert('Could not load that recordings file: ' + err.message); }
+  };
+  rd.readAsText(f); e.target.value = '';
+};
+document.getElementById('btnBlind').onclick = e => {
+  S.blind = !S.blind; S.revealed.clear();
+  e.target.textContent = 'Blind mode: ' + (S.blind ? 'on' : 'off');
+  renderAll();
+};
+document.getElementById('btnTheme').onclick = e => {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+  e.target.textContent = dark ? 'Dark' : 'Light';
+  drawOrPlaceholder();
+};
+const HELP = `
+<h2>What you are looking at</h2>
+<p>Each example is an EEG segment that was shown to our model as a sequence of rendered pages, together with a question. The right-hand panel shows the question and its options, which option is correct, which the model chose, and the reasoning the model wrote before answering.</p>
+<h4>What we would like from you</h4>
+<p>Read the EEG as you normally would (montage, sensitivity, time base and filters are all adjustable), then read the model's reasoning and judge it: does it describe what is actually in the trace? Is a correct answer reached for the right reason? Where it is wrong, what did it miss or invent? Anything you type in the comment box is saved automatically; <b>Export comments</b> at the end produces a file to send back.</p>
+<h4>Blind mode</h4>
+<p>Hides the correct answer, the model's answer and its reasoning until you click Reveal, so you can form your own read first.</p>
+<h4>Keyboard</h4>
+<p><kbd>←</kbd> <kbd>→</kbd> page · <kbd>n</kbd> next example · <kbd>p</kbd> previous · <kbd>+</kbd> <kbd>−</kbd> sensitivity · <kbd>[</kbd> <kbd>]</kbd> time base</p>
+<p style="margin-top:18px"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">Close</button></p>
+`;
+document.getElementById('btnHelp').onclick = () => { document.getElementById('modalBox').innerHTML = HELP; document.getElementById('modal').classList.add('on'); };
+document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') e.currentTarget.classList.remove('on'); });
+document.getElementById('btnPrev').onclick = () => { if (rec()) { S.page = Math.max(0, S.page - 1); draw(); } };
+document.getElementById('btnNext').onclick = () => { if (rec()) { S.page = Math.min(nPages() - 1, S.page + 1); draw(); } };
+window.addEventListener('keydown', e => {
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+  const has = !!rec();
+  if (e.key === 'ArrowRight' && has) { S.page = Math.min(nPages() - 1, S.page + 1); draw(); }
+  else if (e.key === 'ArrowLeft' && has) { S.page = Math.max(0, S.page - 1); draw(); }
+  else if (e.key === 'n') step(1);
+  else if (e.key === 'p') step(-1);
+  else if ((e.key === '+' || e.key === '=') && has) { const i = CFG.sensitivities.indexOf(S.sens); if (i > 0) { S.sens = CFG.sensitivities[i - 1]; renderControls(); draw(); } }
+  else if (e.key === '-' && has) { const i = CFG.sensitivities.indexOf(S.sens); if (i < CFG.sensitivities.length - 1) { S.sens = CFG.sensitivities[i + 1]; renderControls(); draw(); } }
+  else if (e.key === ']' && has) { const i = CFG.timebases.indexOf(S.timebase); if (i < CFG.timebases.length - 1) { S.timebase = CFG.timebases[i + 1]; S.page = 0; renderControls(); draw(); } }
+  else if (e.key === '[' && has) { const i = CFG.timebases.indexOf(S.timebase); if (i > 0) { S.timebase = CFG.timebases[i - 1]; S.page = 0; renderControls(); draw(); } }
+});
+window.addEventListener('resize', () => drawOrPlaceholder());
+
+/* ==========================================================================
+   7. BOOT
+   ========================================================================== */
+restore();
+indexRecordings();
+document.getElementById('runInfo').textContent =
+  (RESULTS.checkpoint ? RESULTS.checkpoint + ' · ' : '') +
+  (RESULTS.macro_balanced_accuracy !== undefined ? `macro balanced accuracy ${RESULTS.macro_balanced_accuracy}` : '');
+renderAll();
+</script>
+</body>
+</html>
