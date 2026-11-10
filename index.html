@@ -212,6 +212,23 @@ html[data-theme="dark"] .role.boundary{background:#78350f;color:#fde68a}
 
 
 #app{grid-template-columns:250px 1fr 440px}
+#modebar{display:flex;align-items:center;gap:10px;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:5px 12px;font-size:12px;color:var(--muted)}
+.seg button.on{background:var(--accent);color:#fff;font-weight:650}
+#controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#controls .ctl{display:flex;align-items:center;gap:5px}
+#controls .ctl label{font-size:11px;color:var(--muted);font-weight:600}
+#controls select{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:3px 6px;font-size:12px}
+#canvasWrap{flex:1;position:relative;min-height:0;background:var(--paper);margin:8px 12px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+#trace{position:absolute;inset:0;width:100%;height:100%;display:block}
+#placeholder{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.6;padding:30px;background:var(--paper)}
+#placeholder.on{display:flex}
+#placeholder b{color:var(--ink)} #placeholder code{font:11px var(--mono);background:var(--bg);padding:1px 5px;border-radius:4px}
+#navbar{display:flex;align-items:center;gap:10px;padding:7px 12px}
+#overview{flex:1;height:34px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;display:block}
+#pageLabel{font:12px var(--mono);color:var(--muted);white-space:nowrap}
+.hide{display:none!important}
 #stage{flex:1;position:relative;min-height:0;background:var(--paper);margin:8px 12px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center}
 #stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;background:var(--paper)}
 #vbar{display:flex;align-items:center;gap:8px;padding:7px 12px;flex-wrap:wrap}
@@ -263,7 +280,21 @@ details.pre pre{white-space:pre-wrap;font:11px var(--mono);background:var(--bg);
 
   <main id="viewer">
     <div id="question"></div>
+    <div id="modebar">
+      <span class="seg"><button id="modeVideo" class="on">Video (what the model saw)</button><button id="modeTrace">EEG trace</button></span>
+      <div id="controls" class="hide"></div>
+      <span class="sp"></span>
+      <button class="ghost hide" id="btnLoad">Load recordings…</button>
+      <input type="file" id="fileRec" accept=".json" hidden>
+    </div>
     <div id="stage"><video id="vid" preload="metadata" playsinline></video></div>
+    <div id="canvasWrap" class="hide"><canvas id="trace"></canvas><div id="placeholder"></div></div>
+    <div id="navbar" class="hide">
+      <button class="ghost" id="btnPrev">◀ Page</button>
+      <canvas id="overview"></canvas>
+      <button class="ghost" id="btnNext">Page ▶</button>
+      <span id="pageLabel">—</span>
+    </div>
     <div id="vbar">
       <button class="ghost" id="btnPlay" title="play / pause (space)">▶ Play</button>
       <button class="ghost" id="fPrev" title="previous frame (←)">◀ frame</button>
@@ -280,11 +311,88 @@ details.pre pre{white-space:pre-wrap;font:11px var(--mono);background:var(--bg);
 
 <script>
 const DATA = {"title": "Stage-2 training traces — expert review", "examples": [{"n": 1, "id": "eegmat_Subject18_1_w007", "corpus": "eegmat", "corpus_code": "EEGMAT", "corpus_title": "EEGMAT — Rest vs. mental arithmetic", "task": "EEGMAT: rest vs mental arithmetic", "question": "Is the subject at rest or performing a mental arithmetic task?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "rest", "B": "mental arithmetic"}, "gold": "A", "trace": "The video shows EEG data in 10-second windows. At 140-150 s, the POWER matrix for 1-8 Hz (theta) has red/purple cells in L temp, L para, mid, R para, R temp, indicating high theta power. The 8-30 Hz (beta) row also shows red/purple cells, suggesting some beta activity. The SHARP matrix is black, indicating low sharpness (low amplitude). At 150-160 s, the 1-8 Hz cells for L temp are black (low power), while L para, mid, R para, R temp remain orange (higher power). The 8-30 Hz row is darker, and the SHARP matrix remains mostly black. At 158 s, the 1-8 Hz cells are mostly black, and the 8-30 Hz row is also dark. The TRACES show minimal amplitude across all regions and time points. Resting state EEG is typically low amplitude with theta activity, while mental arithmetic increases beta. The low amplitude and theta dominance support rest.", "trace_answer": "A", "frames": 2, "span_s": [140.0, 160.0], "frame_s": 10.0, "video": "media/01.mp4", "annotation": {}}, {"n": 2, "id": "eegmat_Subject35_1_w004", "corpus": "eegmat", "corpus_code": "EEGMAT", "corpus_title": "EEGMAT — Rest vs. mental arithmetic", "task": "EEGMAT: rest vs mental arithmetic", "question": "Is the subject at rest or performing a mental arithmetic task?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "rest", "B": "mental arithmetic"}, "gold": "A", "trace": "At 80-90 s, the TRACES (L temp, L para, mid, R temp, R para, R temp) show flat waveforms with minimal amplitude and no spikes. The POWER grid (1-8 Hz, 8-30 Hz) shows low-intensity color in R temp (1-8 Hz) at 80 s, increasing slightly at 90 s. The 8-30 Hz band shows some activity in mid and R temp, but no strong increases. The MAPS (green circles) for 1-8 Hz and 8-30 Hz show stable, scattered activity across both frames. The absence of rhythmic or burst-like patterns in the TRACES and the stable, low-amplitude activity suggest a resting state. Mental arithmetic typically involves increased beta activity and more variable, task-related EEG patterns, which are not observed here. The quiet, consistent EEG and low theta/beta power are more consistent with rest.", "trace_answer": "A", "frames": 2, "span_s": [80.0, 100.0], "frame_s": 10.0, "video": "media/02.mp4", "annotation": {}}, {"n": 3, "id": "eegmat_Subject19_2_w000", "corpus": "eegmat", "corpus_code": "EEGMAT", "corpus_title": "EEGMAT — Rest vs. mental arithmetic", "task": "EEGMAT: rest vs mental arithmetic", "question": "Is the subject at rest or performing a mental arithmetic task?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "rest", "B": "mental arithmetic"}, "gold": "B", "trace": "In the first frame (0-10 s), the R temp trace is a regular wave with low amplitude, and the POWER grid for R temp shows a light red in the 1-8 Hz band. In the second frame (10-20 s), the R temp trace shows increased oscillations, and the POWER grid for R temp is darker red in the 1-8 Hz band, indicating higher theta power. The SHARP panel also shows brighter color in the R temp region during the second frame, suggesting sharper neural activity. These changes in the R temp region—increased theta power and sharper activity—are consistent with cognitive engagement, such as mental arithmetic. Resting states typically show more regular, less variable patterns. The increased activity in the second frame supports the conclusion that the subject is performing a mental arithmetic task.", "trace_answer": "B", "frames": 2, "span_s": [0.0, 20.0], "frame_s": 10.0, "video": "media/03.mp4", "annotation": {}}, {"n": 4, "id": "eegmat_Subject23_2_w001", "corpus": "eegmat", "corpus_code": "EEGMAT", "corpus_title": "EEGMAT — Rest vs. mental arithmetic", "task": "EEGMAT: rest vs mental arithmetic", "question": "Is the subject at rest or performing a mental arithmetic task?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "rest", "B": "mental arithmetic"}, "gold": "B", "trace": "The TRACES (top panel) show scalp chain EEGs. At 20-38 s, L Temp (left temporal), L Para (left parietal), mid, and R Par (right parietal) have small waves at 20 s, with R Par showing larger amplitude waves at 28-38 s. The POWER panel (middle) shows color-coded power for 1-8 Hz and 8-30 Hz bands. At 20 s, R Temp (right temporal) in 8-30 Hz is orange (medium power). By 28-38 s, R Temp in 8-30 Hz becomes darker, indicating higher power. The 8-30 Hz MAPS (next panel) show the R Temp region increasing from green to red over 20-38 s, indicating higher power. The SHARP panel (bottom) shows R Temp sharpness increasing from dark to brighter over 20-38 s. These changes suggest increased neural activity in the right temporal and parietal regions over time, consistent with a mental arithmetic task. Rest would not show such a sustained increase in power and sharpness.", "trace_answer": "B", "frames": 2, "span_s": [20.0, 40.0], "frame_s": 10.0, "video": "media/04.mp4", "annotation": {}}, {"n": 5, "id": "tuab_aaaaaama_s002_t000", "corpus": "tuab", "corpus_code": "TUAB", "corpus_title": "TUAB — Normal vs. abnormal", "task": "TUAB: normal vs abnormal EEG", "question": "Is the background activity in this EEG recording normal or abnormal?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "normal", "B": "abnormal"}, "gold": "A", "trace": "At 0-10 s, the TRACES show noisy oscillations across all channels (L temp, L para, mid, R temp, R para). At 12.3 s, the TRACES again show increased noise. At 20 s, a spike is visible in the TRACES. The POWER section shows varying band activity, including 1-8 Hz (theta) and 8-30 Hz (alpha), with high power in some channels (e.g., L temp in 1-8 Hz is red). The MAPS show scalp distributions of these bands, with no focal excess. The SHARP section shows minimal sharp activity in the early frames (0-12 s), with no persistent sharp waves. The recording spans 1300 s. The background activity includes theta and alpha rhythms with no excessive spikes or noise. Normal EEG includes theta and alpha with variable amplitude and no focal abnormalities. The absence of persistent sharp waves or excessive noise supports a normal background.", "trace_answer": "A", "frames": 132, "span_s": [0.0, 1320.0], "frame_s": 10.0, "video": "media/05.mp4", "annotation": {}}, {"n": 6, "id": "tuab_aaaaaotl_s001_t000", "corpus": "tuab", "corpus_code": "TUAB", "corpus_title": "TUAB — Normal vs. abnormal", "task": "TUAB: normal vs abnormal EEG", "question": "Is the background activity in this EEG recording normal or abnormal?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "normal", "B": "abnormal"}, "gold": "A", "trace": "The recording shows consistent background noise in the EEG traces without spikes or sharp waves. At 0 s, the traces display rhythmic activity typical of normal EEG. No abnormal sharpness is observed in the sharpness cells across the time range. The power maps and scalp maps do not show excessive power or focal abnormalities in any frequency band or hemisphere. The absence of spikes, seizures, or focal abnormalities supports a normal background pattern.", "trace_answer": "A", "frames": 150, "span_s": [0.0, 1500.0], "frame_s": 10.0, "video": "media/06.mp4", "annotation": {}}, {"n": 7, "id": "tuab_aaaaapli_s001_t000", "corpus": "tuab", "corpus_code": "TUAB", "corpus_title": "TUAB — Normal vs. abnormal", "task": "TUAB: normal vs abnormal EEG", "question": "Is the background activity in this EEG recording normal or abnormal?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "normal", "B": "abnormal"}, "gold": "B", "trace": "In the TRACES section, spikes are observed at 270 s in the L temp and R temp chains. These spikes are also visible in the SHARP section as brighter cells, indicating sharp waveforms. Normal EEG background activity is typically rhythmic and smooth without frequent sharp transients. The presence of multiple sharp waves in the background suggests abnormality. Epileptiform activity, such as sharp waves, is not typical in normal background EEG patterns. These findings indicate that the background activity is not normal.", "trace_answer": "B", "frames": 150, "span_s": [0.0, 1500.0], "frame_s": 10.0, "video": "media/07.mp4", "annotation": {}}, {"n": 8, "id": "tuab_aaaaakoq_s010_t001", "corpus": "tuab", "corpus_code": "TUAB", "corpus_title": "TUAB — Normal vs. abnormal", "task": "TUAB: normal vs abnormal EEG", "question": "Is the background activity in this EEG recording normal or abnormal?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "normal", "B": "abnormal"}, "gold": "B", "trace": "The EEG traces (TRACES panel) show excessive noise at 1150 s, which is not typical for normal background activity. The POWER panel shows variable activity levels, with some cells dark (low power) and others colored, but no consistent abnormal pattern. The MAPS panel shows dark areas at times, but not consistently across all frames. The SHARP panel shows increased brightness in some regions, indicating higher sharpness, which may suggest abnormal activity. Normal background activity is typically smooth with some natural noise, not excessive noise or sharpness. The presence of dense noise and increased sharpness in the background indicates abnormality.", "trace_answer": "B", "frames": 128, "span_s": [0.0, 1280.0], "frame_s": 10.0, "video": "media/08.mp4", "annotation": {}}, {"n": 9, "id": "tuep_aaaaaovh_s001_t000", "corpus": "tuep", "corpus_code": "TUEP", "corpus_title": "TUEP — EEG evidence supporting epilepsy", "task": "TUEP: epilepsy diagnosis", "question": "Based on this EEG, does this patient have epilepsy?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "no epilepsy", "B": "epilepsy"}, "gold": "A", "trace": "In the SHARP panel, most cells are dark (black), indicating no sharpness, with only occasional lighter cells. No consistent or frequent sharp waves or spikes are observed across the recording. For example, at 370 s, the SHARP panel shows no prominent sharpness. The absence of recurrent sharp waves or spikes suggests no epileptiform activity. Epilepsy is typically indicated by such abnormal electrical discharges. Since no such patterns are present, the EEG does not show evidence of epilepsy.", "trace_answer": "A", "frames": 122, "span_s": [0.0, 1220.0], "frame_s": 10.0, "video": "media/09.mp4", "annotation": {}}, {"n": 10, "id": "tuep_aaaaamum_s002_t021", "corpus": "tuep", "corpus_code": "TUEP", "corpus_title": "TUEP — EEG evidence supporting epilepsy", "task": "TUEP: epilepsy diagnosis", "question": "Based on this EEG, does this patient have epilepsy?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "no epilepsy", "B": "epilepsy"}, "gold": "A", "trace": "In the EEG video, the traces (L temp, L para, mid, R para, R temp) from all panels (TRACES, POWER, MAPS) show smooth, rhythmic activity without spikes or sharp waves. At 0-4 s, 10-14 s, 20-24 s, and 30-34 s, the R temp trace remains smooth with no irregularities. The POWER grid shows color changes in R temp over time, but no abnormal power surges. The MAPS show no focal or generalized epileptiform discharges. Epileptiform activity, such as spikes or sharp waves, is absent in all observed time points and regions.", "trace_answer": "A", "frames": 4, "span_s": [0.0, 40.0], "frame_s": 10.0, "video": "media/10.mp4", "annotation": {}}, {"n": 11, "id": "tuep_aaaaabdn_s010_t005", "corpus": "tuep", "corpus_code": "TUEP", "corpus_title": "TUEP — EEG evidence supporting epilepsy", "task": "TUEP: epilepsy diagnosis", "question": "Based on this EEG, does this patient have epilepsy?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "no epilepsy", "B": "epilepsy"}, "gold": "B", "trace": "At 0 s, the R temp trace shows spikes. At 8 s, the SHARP panel shows bright cells (yellow/orange) in the R temp area. At 14 s, the R temp trace has a spike. At 24 s, the R temp trace shows another spike. At 34 s, the R temp trace has a spike again. These spikes are recurring in the right temporal region, with corresponding increased sharpness in the SHARP panel. Epilepsy is characterized by focal, rhythmic, high-amplitude spikes or sharp waves. The presence of multiple spikes in the R temp trace at different times (0, 14, 24, 34 s) and the bright SHARP cells in the R temp area suggest abnormal electrical activity. This pattern is consistent with focal epileptic activity.", "trace_answer": "B", "frames": 30, "span_s": [0.0, 300.0], "frame_s": 10.0, "video": "media/11.mp4", "annotation": {}}, {"n": 12, "id": "tuep_aaaaapkm_s004_t000", "corpus": "tuep", "corpus_code": "TUEP", "corpus_title": "TUEP — EEG evidence supporting epilepsy", "task": "TUEP: epilepsy diagnosis", "question": "Based on this EEG, does this patient have epilepsy?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "no epilepsy", "B": "epilepsy"}, "gold": "B", "trace": "The traces (TRACES panel) show distinct spikes in L Temp and L Para channels at 4 s, 14 s, and 24 s. The SHARP panel shows brighter cells at these times, indicating sharp activity. These spikes are recurrent and localized, consistent with epileptiform discharges. Epilepsy is characterized by abnormal, recurrent electrical discharges in the brain, often seen as sharp waves or spikes on EEG. The presence of multiple sharp discharges in specific channels supports this diagnosis.", "trace_answer": "B", "frames": 30, "span_s": [0.0, 300.0], "frame_s": 10.0, "video": "media/12.mp4", "annotation": {}}, {"n": 13, "id": "tuev_aaaaadud_00000001_e0020", "corpus": "tuev_events", "corpus_code": "TUEV", "corpus_title": "TUEV — Event classification", "task": "TUEV: event type (6 classes)", "question": "Which of the following best describes this EEG segment?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "artifact", "B": "background", "C": "eye movement", "D": "generalized periodic discharges", "E": "periodic lateralized discharges", "F": "spike and sharp wave"}, "gold": "A", "trace": "At 2-20 s, the TRACES show small waves in L Temp, L Para, mid, and R Temp. The POWER section has red/magenta cells for L Temp (13-45) and purple/magenta for others, with black cells increasing over time. The SHARP section shows minimal bright cells. The black cells in POWER suggest low or absent activity, consistent with artifact. The TRACES show noise without periodicity, and no sharp waves or discharges are present. These findings are not consistent with normal background or periodic patterns. Artifact is indicated by the irregular, non-physiological signal changes.", "trace_answer": "A", "frames": 2, "span_s": [2.0, 22.0], "frame_s": 10.0, "video": "media/13.mp4", "annotation": {"event_s": [11.5, 12.5], "event_label": "artifact"}}, {"n": 14, "id": "tuev_aaaaaezm_00000001_e0036", "corpus": "tuev_events", "corpus_code": "TUEV", "corpus_title": "TUEV — Event classification", "task": "TUEV: event type (6 classes)", "question": "Which of the following best describes this EEG segment?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "artifact", "B": "background", "C": "eye movement", "D": "generalized periodic discharges", "E": "periodic lateralized discharges", "F": "spike and sharp wave"}, "gold": "B", "trace": "At 14.9-24.9 s, the TRACES panel shows waveforms in L, L para, mid, R para, R temp, with no sharp or periodic features. The POWER panel for 1-8 Hz and 8-30 Hz shows low to moderate power, with no focal or generalized increases. The MAPS panel for 1-8 Hz and 8-30 Hz shows diffuse, symmetric activity. No spikes, sharp waves, or periodic discharges are observed. The pattern is consistent with normal background activity, without focal or generalized abnormalities. The absence of sharp or periodic features rules out options D, E, and F. The activity is not consistent with eye movement or artifact, as there are no characteristic waveforms or noise patterns. The EEG shows no specific abnormality beyond normal background activity.", "trace_answer": "B", "frames": 2, "span_s": [14.9, 34.9], "frame_s": 10.0, "video": "media/14.mp4", "annotation": {"event_s": [24.4, 25.4], "event_label": "background"}}, {"n": 15, "id": "tuev_aaaaabrr_00000001_e0002", "corpus": "tuev_events", "corpus_code": "TUEV", "corpus_title": "TUEV — Event classification", "task": "TUEV: event type (6 classes)", "question": "Which of the following best describes this EEG segment?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "artifact", "B": "background", "C": "eye movement", "D": "generalized periodic discharges", "E": "periodic lateralized discharges", "F": "spike and sharp wave"}, "gold": "C", "trace": "In the TRACES panel, small spikes are observed in L temp, L para, mid, R para, and R temp at 1.3 s and again at 5.3 s. These spikes are brief and symmetric, consistent with transient voltage changes. In the MAPS panel, the 1-8 Hz and 8-30 Hz maps show no focal abnormalities in the first frame (1.3 s), but the second frame (5.3 s) shows dark areas, suggesting reduced power, possibly due to artifact. Eye movement artifacts typically appear as brief, widespread voltage changes in EEG traces, often in central and temporal regions, and can cause localized reductions in power in frequency maps. These findings are consistent with eye movement rather than generalized or lateralized discharges or sharp waves.", "trace_answer": "C", "frames": 2, "span_s": [1.3, 21.3], "frame_s": 10.0, "video": "media/15.mp4", "annotation": {"event_s": [10.8, 11.8], "event_label": "eye movement"}}, {"n": 16, "id": "tuev_aaaaaduk_00000002_e0031", "corpus": "tuev_events", "corpus_code": "TUEV", "corpus_title": "TUEV — Event classification", "task": "TUEV: event type (6 classes)", "question": "Which of the following best describes this EEG segment?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "artifact", "B": "background", "C": "eye movement", "D": "generalized periodic discharges", "E": "periodic lateralized discharges", "F": "spike and sharp wave"}, "gold": "D", "trace": "At 70 s, the TRACES panel shows regular, rhythmic oscillations in L temp, L para, mid, R para, and R temp. These waves are symmetric and consistent across hemispheres. The pattern is less regular at 80 s. The rhythmic, generalized activity is not consistent with artifact, eye movement, or spike/sharp wave morphology. It is symmetric, ruling out lateralized discharges. The pattern is more rhythmic than typical background activity. Generalized periodic discharges are defined by widespread, rhythmic discharges, which match the 70 s observation.", "trace_answer": "D", "frames": 2, "span_s": [69.9, 89.9], "frame_s": 10.0, "video": "media/16.mp4", "annotation": {"event_s": [79.4, 80.4], "event_label": "generalized periodic discharges"}}, {"n": 17, "id": "tuev_aaaaaatx_00000001_e0029", "corpus": "tuev_events", "corpus_code": "TUEV", "corpus_title": "TUEV — Event classification", "task": "TUEV: event type (6 classes)", "question": "Which of the following best describes this EEG segment?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "artifact", "B": "background", "C": "eye movement", "D": "generalized periodic discharges", "E": "periodic lateralized discharges", "F": "spike and sharp wave"}, "gold": "E", "trace": "At 6.8-10.8 s, L temp shows rhythmic activity in the TRACES panel. At 16.8-20.8 s, L temp continues to show rhythmic activity. At 24.8 s, L temp still shows rhythmic activity. L para also shows rhythmic activity at 6.8-10.8 s and 16.8-20.8 s. Mid, R para, and R temp show no rhythmic activity. The rhythmic activity is lateralized to the left hemisphere and is periodic, as seen in the TRACES panel. The POWER and MAPS panels support this with increased power in the left hemisphere. The activity is not generalized, not an artifact, not eye movement, and not a spike or sharp wave. The rhythmic pattern is consistent over time and localized to the left hemisphere.", "trace_answer": "E", "frames": 2, "span_s": [6.8, 26.8], "frame_s": 10.0, "video": "media/17.mp4", "annotation": {"event_s": [16.3, 17.3], "event_label": "periodic lateralized discharges"}}, {"n": 18, "id": "tuev_aaaaaafi_00000001_e0001", "corpus": "tuev_events", "corpus_code": "TUEV", "corpus_title": "TUEV — Event classification", "task": "TUEV: event type (6 classes)", "question": "Which of the following best describes this EEG segment?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "artifact", "B": "background", "C": "eye movement", "D": "generalized periodic discharges", "E": "periodic lateralized discharges", "F": "spike and sharp wave"}, "gold": "F", "trace": "At 81.0 s, the TRACES show sharp spikes in L temp, L para, mid, R temp, and R para. These are high-amplitude transients with vertical morphology. The SHARP panel at 81.0 s is all green, indicating no sharpness, but at 91.0 s, some cells are brighter, suggesting increased sharpness. Spikes are transient, high-amplitude events, and sharp waves are slower, more prolonged. The presence of spikes in multiple channels, without lateralization or periodicity, supports the pattern of spike and sharp wave. This is distinct from generalized or lateralized periodic discharges, which require rhythmic repetition. The pattern is not consistent with background activity or eye movement, and the spikes are not artifacts.", "trace_answer": "F", "frames": 2, "span_s": [81.4, 101.4], "frame_s": 10.0, "video": "media/18.mp4", "annotation": {"event_s": [90.9, 91.9], "event_label": "spike and sharp wave"}}, {"n": 19, "id": "tusl_aaaaajqb_s001_t000_e0003", "corpus": "tusl_events", "corpus_code": "TUSL", "corpus_title": "TUSL — Normal background vs. slowing vs. seizure", "task": "TUSL: slowing / seizure / complex background", "question": "Does this EEG segment show normal background, slowing, or a seizure?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "normal background", "B": "slowing", "C": "seizure"}, "gold": "A", "trace": "At 1035-1045 s, L para and mid show low power (blue) in the band power grid, while R para and R temp show higher power (orange). The traces in the first frame (1035 s) show flat activity in L temp and L para, with a small peak in R temp. The SHARP grid shows some purple in R temp at 1035 s. The second frame (1045 s) shows similar patterns, with no sustained abnormal activity. No sharp waves or rhythmic discharges are observed across the time range. The band power and scalp maps do not show focal or generalized increases in power that would suggest slowing or seizure. The background activity remains stable and within normal limits. The absence of high-amplitude spikes, rhythmic patterns, or focal slowing supports a normal background.", "trace_answer": "A", "frames": 2, "span_s": [1035.0, 1055.0], "frame_s": 10.0, "video": "media/19.mp4", "annotation": {"event_s": [1040.0, 1050.0], "event_label": "background"}}, {"n": 20, "id": "tusl_aaaaanrc_s004_t001_e0000", "corpus": "tusl_events", "corpus_code": "TUSL", "corpus_title": "TUSL — Normal background vs. slowing vs. seizure", "task": "TUSL: slowing / seizure / complex background", "question": "Does this EEG segment show normal background, slowing, or a seizure?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "normal background", "B": "slowing", "C": "seizure"}, "gold": "B", "trace": "At 138 s, the TRACES show L temp and L para flat, mid normal, R para and R temp with ripples. The 8-30 Hz MAPS are red (high power) for all channels. At 148 s, the TRACES show R para and R temp with more pronounced ripples. The 8-30 Hz MAPS are black (low power) for most channels, indicating reduced high-frequency activity. Slowing is defined by a shift toward lower frequency bands and reduced power in higher bands. The 8-30 Hz power drop from red to black between 138 s and 148 s supports this. No sharp discharges or rhythmic patterns suggest a seizure. The background is not normal due to the frequency shift and power reduction.", "trace_answer": "B", "frames": 2, "span_s": [138.0, 158.0], "frame_s": 10.0, "video": "media/20.mp4", "annotation": {"event_s": [143.0, 153.0], "event_label": "slowing"}}, {"n": 21, "id": "tusl_aaaaalhf_s001_t000_e0001", "corpus": "tusl_events", "corpus_code": "TUSL", "corpus_title": "TUSL — Normal background vs. slowing vs. seizure", "task": "TUSL: slowing / seizure / complex background", "question": "Does this EEG segment show normal background, slowing, or a seizure?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "normal background", "B": "slowing", "C": "seizure"}, "gold": "C", "trace": "In 1224-1242 s, the R para and R temp traces show high-amplitude, irregular activity with spikes. The mid trace is noisy. The POWER panel shows high power in the R para band, and the SHARP panel shows sharp discharges. The MAPS panel shows high activity in the 8-30 Hz range. These findings are consistent with abnormal, repetitive discharges typical of a seizure. Normal background activity is regular and rhythmic, while slowing involves slower rhythms like delta. The observed activity is not rhythmic or consistent with slowing. The increasing irregularity and sharp discharges in the right hemisphere support a seizure.", "trace_answer": "C", "frames": 2, "span_s": [1224.0, 1244.0], "frame_s": 10.0, "video": "media/21.mp4", "annotation": {"event_s": [1229.0, 1239.0], "event_label": "seizure"}}, {"n": 22, "id": "tusz_aaaaakao_s007_t008", "corpus": "tusz", "corpus_code": "TUSZ", "corpus_title": "TUSZ — Seizure detection", "task": "TUSZ: does the recording contain a seizure", "question": "Does this EEG recording contain an electrographic seizure?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "no seizure", "B": "seizure"}, "gold": "A", "trace": "The TRACES section shows mostly flat or minor fluctuating waveforms with no significant spikes or abnormal high-amplitude waves. The POWER section has color-coded cells; for example, orange in R temp at certain times, but no sustained high power typical of seizures. The bands (L temp, L para, mid, R para, R temp) do not show sudden, abnormal increases. The MAPS section has normal color gradients without focal areas of high intensity. The SHARP section shows varying brightness but not extreme sharpness indicative of seizures. Across the 0–290 s timeframe, no abnormal patterns meet criteria for an electrographic seizure.", "trace_answer": "A", "frames": 30, "span_s": [0.0, 300.0], "frame_s": 10.0, "video": "media/22.mp4", "annotation": {"seizures_s": []}}, {"n": 23, "id": "tusz_aaaaabms_s001_t000", "corpus": "tusz", "corpus_code": "TUSZ", "corpus_title": "TUSZ — Seizure detection", "task": "TUSZ: does the recording contain a seizure", "question": "Does this EEG recording contain an electrographic seizure?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "no seizure", "B": "seizure"}, "gold": "A", "trace": "At 20 s, the traces show synchronized waves in L temp, L para, and mid, but no high-amplitude, repetitive discharges. The power maps show some yellow (high power) in R temp at 0 s, but no focal or generalized hyperactivity. The sharpness cells have some yellow (higher sharpness) at 0 s, but most are dark, indicating few sharp waves. Traces at 0 s, 10 s, 30 s, and 40 s show no spikes, bursts, or abnormal rhythms. The scalp maps do not show widespread or focal abnormal activity. No seizure-like pattern is observed in any panel or time frame. The EEG activity remains within normal limits. No electrographic seizure is present.", "trace_answer": "A", "frames": 40, "span_s": [0.0, 400.0], "frame_s": 10.0, "video": "media/23.mp4", "annotation": {"seizures_s": []}}, {"n": 24, "id": "tusz_aaaaaroo_s005_t000", "corpus": "tusz", "corpus_code": "TUSZ", "corpus_title": "TUSZ — Seizure detection", "task": "TUSZ: does the recording contain a seizure", "question": "Does this EEG recording contain an electrographic seizure?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "no seizure", "B": "seizure"}, "gold": "B", "trace": "At 100-110 s, the POWER matrix shows L temp, L para, mid, R para, and R temp as black, indicating high power. At 200-210 s, the SHARP panel shows red cells, indicating high sharpness. At 230 s, the TRACES panel shows a sharp spike in L temp. At 240 s, L temp again shows a spike, and the SHARP panel is red. At 290 s, the recording ends. These observations include high-amplitude spikes in L temp and high power and sharpness across multiple channels. Seizures are characterized by abnormal, rhythmic, or repetitive discharges. The presence of sharp spikes and high power in multiple channels supports the presence of seizure activity.", "trace_answer": "B", "frames": 30, "span_s": [0.0, 300.0], "frame_s": 10.0, "video": "media/24.mp4", "annotation": {"seizures_s": [[82.7639, 94.0263, "seiz"], [213.6467, 228.1063, "seiz"], [233.0863, 256.9646, "seiz"]]}}, {"n": 25, "id": "tusz_aaaaafjw_s002_t008", "corpus": "tusz", "corpus_code": "TUSZ", "corpus_title": "TUSZ — Seizure detection", "task": "TUSZ: does the recording contain a seizure", "question": "Does this EEG recording contain an electrographic seizure?", "prompt_preamble": "The video shows the EEG as one frame per 10-second window. Each frame has four panels, top to bottom: TRACES (EEG by scalp chain), POWER (band power cells for the left and right hemisphere), MAPS (scalp maps for 1-8 Hz and 8-30 Hz, nose up, left on the left), SHARP (sharpness cells by scalp chain, brighter = sharper). The time axis at the bottom gives recording seconds.", "options": {"A": "no seizure", "B": "seizure"}, "gold": "B", "trace": "At 0 s, R temp (R Tmp) trace shows high-frequency spiky activity, while L temp (L Tmp), L para (L Par), mid, R para (R Par) are flat. The power chart at 0 s shows R temp as yellow (high power). At 10 s, R temp trace is flat, and power remains yellow. At 20 s, 30 s, 40 s, 50 s, 60 s, 70 s, 80 s, 90 s, R temp trace remains flat. Midline activity is flat throughout. The spiky pattern at 0 s in R temp is a focal burst of high-frequency activity. A seizure is defined by abnormal, excessive, and synchronous electrical activity. The burst at 0 s in R temp meets this criterion. The activity is focal, not generalized, but electrographic seizures can be focal. The absence of ongoing activity after 0 s does not negate the presence of a seizure at that time. The recording contains an electrographic seizure.", "trace_answer": "B", "frames": 10, "span_s": [0.0, 100.0], "frame_s": 10.0, "video": "media/25.mp4", "annotation": {"seizures_s": [[1.0, 14.1818, "seiz"]]}}]};
+let RECORDINGS = [];               // EEG signals, loaded from signals.json next to this page (or 'Load recordings…')
+const CFG = {
+  pxPerMm: 96 / 25.4,
+  labelW: 74,
+  padTop: 10,
+  padBottom: 30,
+  padRight: 14,
+  chainGap: 8,                     // extra px between montage chains
+  timebases: [5, 10, 15, 20, 30],  // seconds per page
+  defaultTimebase: 10,
+  sensitivities: [2, 3, 5, 7, 10, 15, 20, 30],  // microvolts per mm
+  defaultSensitivity: 7,
+  highpass: [
+    {v: 0,   t: 'off'}, {v: 0.5, t: '0.5 Hz'}, {v: 1,  t: '1 Hz'},
+    {v: 1.6, t: '1.6 Hz'}, {v: 5, t: '5 Hz'}
+  ],
+  lowpass: [
+    {v: 0, t: 'off'}, {v: 15, t: '15 Hz'}, {v: 35, t: '35 Hz'},
+    {v: 45, t: '45 Hz'}, {v: 70, t: '70 Hz'}
+  ],
+  defaultHP: 1,
+  defaultLP: 70,
+  notchOptions: [{v: 0, t: 'off'}, {v: 50, t: '50 Hz'}, {v: 60, t: '60 Hz'}],
+  defaultNotch: 60,
+  collapseWorklistOver: 40,        // above this many recordings, fold the worklist
+  minMontageRows: 4,               // below this, fall back to a montage that shows more
+  /* Fallback order. 'ref-raw' before 'ref-avg': re-referencing four mastoid-referenced
+     PSG channels to their own average distorts them, and AASM staging is read from
+     F4-M1 / C4-M1 / O2-M1 as recorded. */
+  montageFallback: ['ref-raw', 'ref-avg', 'bip-long', 'bip-trans'],
+  calibrationUv: 50,
+  calibrationBoxW: 90,
+  minDragPx: 4,
+  overviewHeight: 34,
+
+};
+
+/* ---- montages ------------------------------------------------------------ */
+const MONTAGES = {
+  'bip-long': {
+    name: 'Longitudinal bipolar (double banana)',
+    chains: [
+      [['Fp1','F7'],['F7','T3'],['T3','T5'],['T5','O1']],
+      [['Fp2','F8'],['F8','T4'],['T4','T6'],['T6','O2']],
+      [['Fp1','F3'],['F3','C3'],['C3','P3'],['P3','O1']],
+      [['Fp2','F4'],['F4','C4'],['C4','P4'],['P4','O2']],
+      [['Fz','Cz'],['Cz','Pz']]
+    ]
+  },
+  'bip-trans': {
+    name: 'Transverse bipolar',
+    chains: [
+      [['F7','F3'],['F3','Fz'],['Fz','F4'],['F4','F8']],
+      [['T3','C3'],['C3','Cz'],['Cz','C4'],['C4','T4']],
+      [['T5','P3'],['P3','Pz'],['Pz','P4'],['P4','T6']]
+    ]
+  },
+  'ref-avg': {
+    name: 'Referential — average reference',
+    single: ['Fp1','Fp2','F7','F3','Fz','F4','F8','T3','C3','Cz','C4','T4','T5','P3','Pz','P4','T6','O1','O2'],
+    avg: true
+  },
+  'ref-raw': {
+    name: 'Referential — as recorded',
+    single: ['Fp1','Fp2','F7','F3','Fz','F4','F8','T3','C3','Cz','C4','T4','T5','P3','Pz','P4','T6','O1','O2'],
+    avg: false
+  }
+};
+const DEFAULT_MONTAGE = 'bip-long';
+
+
+
+
 const EX = DATA.examples;
 const CORPUS_ORDER = ['tuab','tusz','tuep','tuev_events','hmc','eegmat','tusl_events'];
 const SCORE_ANCHORS = {1: 'wrong or invented', 2: 'mostly inaccurate', 3: 'partly right', 4: 'accurate, minor issues', 5: 'accurate and clinically sound'};
 
-const S = {i: 0, reviews: {}, reviewer: '', savedAt: null, collapsed: null, lastC: null};
+const S = {i: 0, reviews: {}, reviewer: '', savedAt: null, collapsed: null, lastC: null,
+  mode: 'video',
+  montage: DEFAULT_MONTAGE, montagePref: DEFAULT_MONTAGE, montageFor: null,
+  timebase: CFG.defaultTimebase, sens: CFG.defaultSensitivity, hp: CFG.defaultHP, lp: CFG.defaultLP, notch: CFG.defaultNotch,
+  page: 0, decoded: new Map(), filtered: new Map()};
 const store = (() => {
   let ok = false; try { localStorage.setItem('__t','1'); localStorage.removeItem('__t'); ok = true; } catch (e) {}
   const mem = {};
@@ -322,7 +430,11 @@ document.getElementById('btnPlay').onclick = togglePlay;
 vid.addEventListener('play', () => document.getElementById('btnPlay').textContent = '❚❚ Pause');
 vid.addEventListener('pause', () => document.getElementById('btnPlay').textContent = '▶ Play');
 vid.addEventListener('click', togglePlay);
-function seekRecSec(t) { const e = ex(); seekFrame(Math.floor((t - e.span_s[0]) / e.frame_s)); }
+function seekRecSec(t) {
+  const e = ex();
+  if (S.mode === 'trace' && rec()) { S.page = Math.min(nPages() - 1, Math.max(0, Math.floor((t - recOffset()) / S.timebase))); draw(); return; }
+  seekFrame(Math.floor((t - e.span_s[0]) / e.frame_s));
+}
 function renderFrameLabel() {
   const e = ex(), k = frameOf(), a = e.span_s[0] + k * e.frame_s;
   document.getElementById('frameLabel').textContent = `frame ${k + 1}/${e.frames} · ${a.toFixed(0)}–${(a + e.frame_s).toFixed(0)} s`;
@@ -356,6 +468,375 @@ function linkTimes(text) {
   frag.append(document.createTextNode(text.slice(last)));
   return frag;
 }
+
+
+/* ==========================================================================
+   EEG TRACE VIEWER (from the annotation station)
+   ========================================================================== */
+const REC_BY_ID = new Map();
+function indexRecordings() { REC_BY_ID.clear(); RECORDINGS.forEach(r => REC_BY_ID.set(String(r.id).toLowerCase(), r)); }
+function stemOf(id) { const m = /^(tuab|tusz|tuep|tuev|hmc|eegmat|tusl)_(.+)$/i.exec(id); return (m ? m[2] : id).toLowerCase(); }
+function recordingFor(e) {
+  if (!RECORDINGS.length) return null;
+  const w = String(e.signal_id || e.id).toLowerCase();
+  if (REC_BY_ID.has(w)) return REC_BY_ID.get(w);
+  const st = stemOf(e.id);
+  return RECORDINGS.find(r => String(r.id).toLowerCase().includes(st)) || null;
+}
+function rec() { return recordingFor(ex()); }
+/* ==========================================================================
+   3. SIGNAL LAYER
+   ========================================================================== */
+/* ==========================================================================
+   3. SIGNAL LAYER
+   ========================================================================== */
+function decode(rec) {
+  if (S.decoded.has(rec.id)) return S.decoded.get(rec.id);
+  const bin = atob(rec.data);
+  const buf = new ArrayBuffer(bin.length);
+  const u8 = new Uint8Array(buf);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const i16 = new Int16Array(buf);
+  const n = rec.n_samples, out = [];
+  for (let c = 0; c < rec.channels.length; c++) {
+    const a = new Float32Array(n);
+    for (let i = 0; i < n; i++) a[i] = i16[c * n + i] * rec.scale;
+    out.push(a);
+  }
+  S.decoded.set(rec.id, out);
+  return out;
+}
+
+/* RBJ biquad, applied forward then backward (zero phase) */
+function biquad(type, f0, fs, Q) {
+  const w0 = 2 * Math.PI * f0 / fs, c = Math.cos(w0), s = Math.sin(w0), alpha = s / (2 * Q);
+  let b0, b1, b2, a0, a1, a2;
+  if (type === 'lp')      { b0=(1-c)/2; b1=1-c;    b2=(1-c)/2; a0=1+alpha; a1=-2*c; a2=1-alpha; }
+  else if (type === 'hp') { b0=(1+c)/2; b1=-(1+c); b2=(1+c)/2; a0=1+alpha; a1=-2*c; a2=1-alpha; }
+  else                    { b0=1;       b1=-2*c;   b2=1;       a0=1+alpha; a1=-2*c; a2=1-alpha; } // notch
+  return {b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0};
+}
+function applyOnce(x, k, reverse) {
+  const n = x.length, y = new Float32Array(n);
+  let x1=0,x2=0,y1=0,y2=0;
+  const first = reverse ? n-1 : 0, step = reverse ? -1 : 1;
+  for (let m = 0; m < n; m++) {
+    const i = first + m*step, xi = x[i];
+    const yi = k.b0*xi + k.b1*x1 + k.b2*x2 - k.a1*y1 - k.a2*y2;
+    x2=x1; x1=xi; y2=y1; y1=yi; y[i]=yi;
+  }
+  return y;
+}
+function filtfilt(x, k) { return applyOnce(applyOnce(x, k, false), k, true); }
+
+function filteredSignals(rec) {
+  const key = [rec.id, S.hp, S.lp, S.notch].join('|');
+  if (S.filtered.has(key)) return S.filtered.get(key);
+  const raw = decode(rec), fs = rec.sfreq;
+  const kernels = [];
+  if (S.hp > 0)    kernels.push(biquad('hp', S.hp, fs, 0.707));
+  if (S.lp > 0 && S.lp < fs/2) kernels.push(biquad('lp', S.lp, fs, 0.707));
+  if (S.notch > 0 && S.notch < fs/2) kernels.push(biquad('notch', S.notch, fs, 30));
+  const out = raw.map(ch => kernels.reduce((sig, k) => filtfilt(sig, k), ch));
+  S.filtered.set(key, out);
+  return out;
+}
+
+/* Build the display rows for the active montage. */
+function montageRows(rec) {
+  const m = MONTAGES[S.montage], sig = filteredSignals(rec);
+  const idx = {}; rec.channels.forEach((c, i) => idx[c] = i);
+  const n = rec.n_samples;
+  const rows = [];
+  if (m.single) {
+    let avg = null;
+    if (m.avg) {
+      avg = new Float32Array(n);
+      const present = m.single.filter(c => c in idx);
+      for (const c of present) { const a = sig[idx[c]]; for (let i=0;i<n;i++) avg[i] += a[i]; }
+      for (let i=0;i<n;i++) avg[i] /= present.length;
+    }
+    for (const c of m.single) {
+      if (!(c in idx)) continue;
+      const a = sig[idx[c]];
+      let d;
+      if (avg) { d = new Float32Array(n); for (let i=0;i<n;i++) d[i] = a[i]-avg[i]; }
+      else d = a;
+      rows.push({name: c + (m.avg ? '-Avg' : ''), members: [c], data: d, gapAfter: false});
+    }
+  } else {
+    m.chains.forEach((chain, ci) => {
+      chain.forEach((pair, pi) => {
+        const [a, b] = pair;
+        if (!(a in idx) || !(b in idx)) return;
+        const A = sig[idx[a]], B = sig[idx[b]], d = new Float32Array(n);
+        for (let i=0;i<n;i++) d[i] = A[i]-B[i];
+        rows.push({name: a+'-'+b, members: [a,b], data: d,
+                   gapAfter: pi === chain.length-1 && ci < m.chains.length-1});
+      });
+    });
+  }
+  return rows;
+}
+
+
+const cv = document.getElementById('trace');
+const ctx = cv.getContext('2d');
+let LAYOUT = {rows:[], rowY:[], plotX0:0, plotX1:0, w:0, h:0};
+
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function draw() {
+  const r = rec(), wrap = document.getElementById('canvasWrap');
+  const dpr = window.devicePixelRatio || 1;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  LAYOUT.w = w; LAYOUT.h = h;
+
+  ctx.fillStyle = css('--paper'); ctx.fillRect(0, 0, w, h);
+
+  const rows = montageRows(r);
+  const x0 = CFG.labelW, x1 = w - CFG.padRight;
+  LAYOUT.rows = rows; LAYOUT.plotX0 = x0; LAYOUT.plotX1 = x1;
+
+  const gaps = rows.filter(rw => rw.gapAfter).length;
+  const usable = h - CFG.padTop - CFG.padBottom - gaps * CFG.chainGap;
+  const rowH = usable / rows.length;
+  let y = CFG.padTop + rowH / 2;
+  LAYOUT.rowY = [];
+  for (const rw of rows) { LAYOUT.rowY.push(y); y += rowH + (rw.gapAfter ? CFG.chainGap : 0); }
+  LAYOUT.rowH = rowH;
+
+  const dur = r.n_samples / r.sfreq;
+  const t0 = S.page * S.timebase;
+  const t1 = Math.min(t0 + S.timebase, dur);
+  LAYOUT.t0 = t0; LAYOUT.t1 = t0 + S.timebase;
+  const pxPerSec = (x1 - x0) / S.timebase;
+  const uvToPx = CFG.pxPerMm / S.sens;
+
+  
+
+
+  /* grid: 1 s light, 5 s strong */
+  ctx.lineWidth = 1;
+  for (let s = 0; s <= S.timebase; s++) {
+    const x = x0 + s * pxPerSec;
+    ctx.strokeStyle = (s % 5 === 0) ? css('--grid-strong') : css('--grid');
+    ctx.beginPath(); ctx.moveTo(x + .5, CFG.padTop - 4); ctx.lineTo(x + .5, h - CFG.padBottom + 4); ctx.stroke();
+  }
+
+  /* traces */
+  ctx.lineWidth = 1;
+  const clampPx = rowH * 2.2;
+  rows.forEach((rw, i) => {
+    const yc = LAYOUT.rowY[i];
+    const selected = false;
+    ctx.strokeStyle = selected ? css('--accent') : css('--trace');
+    ctx.lineWidth = selected ? 1.4 : 1;
+    ctx.beginPath();
+    const i0 = Math.max(0, Math.floor(t0 * r.sfreq));
+    const i1 = Math.min(r.n_samples - 1, Math.ceil(LAYOUT.t1 * r.sfreq));
+    const spp = (i1 - i0) / (x1 - x0);      // samples per pixel
+    if (spp > 2) {                           // min/max decimation
+      for (let px = 0; px <= x1 - x0; px++) {
+        const s0 = i0 + Math.floor(px * spp), s1 = Math.min(i1, i0 + Math.floor((px+1) * spp));
+        let mn = Infinity, mx = -Infinity;
+        for (let s = s0; s <= s1; s++) { const v = rw.data[s]; if (v < mn) mn = v; if (v > mx) mx = v; }
+        const yA = yc - Math.max(-clampPx, Math.min(clampPx, mx * uvToPx));
+        const yB = yc - Math.max(-clampPx, Math.min(clampPx, mn * uvToPx));
+        if (px === 0) ctx.moveTo(x0, yA); else ctx.lineTo(x0 + px, yA);
+        ctx.lineTo(x0 + px, yB);
+      }
+    } else {
+      for (let s = i0; s <= i1; s++) {
+        const x = x0 + (s / r.sfreq - t0) * pxPerSec;
+        const yv = yc - Math.max(-clampPx, Math.min(clampPx, rw.data[s] * uvToPx));
+        if (s === i0) ctx.moveTo(x, yv); else ctx.lineTo(x, yv);
+      }
+    }
+    ctx.stroke();
+  });
+
+  /* labels */
+  ctx.font = '11px ' + css('--mono');
+  ctx.textBaseline = 'middle';
+  rows.forEach((rw, i) => {
+    const selected = false;
+    if (selected) {
+      ctx.fillStyle = css('--accent-soft');
+      ctx.fillRect(2, LAYOUT.rowY[i] - rowH/2, CFG.labelW - 6, rowH);
+    }
+    ctx.fillStyle = selected ? css('--accent') : css('--muted');
+    ctx.fillText(rw.name, 6, LAYOUT.rowY[i]);
+  });
+
+  /* calibration bar: CFG.calibrationUv over 1 s, drawn inside the plot, bottom-right */
+  const calH = Math.min(CFG.calibrationUv * uvToPx, LAYOUT.rowH * 1.6);
+  const cbx = x1 - CFG.calibrationBoxW, cby = h - CFG.padBottom - 6;
+  ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cbx, cby); ctx.lineTo(cbx, cby - calH); ctx.lineTo(cbx + pxPerSec, cby - calH);
+  ctx.stroke();
+  ctx.fillStyle = css('--muted'); ctx.font = '10px ' + css('--mono'); ctx.textBaseline = 'top';
+  ctx.fillText(CFG.calibrationUv + ' µV / 1 s', cbx + 3, cby - calH - 12);
+
+  /* time axis (skip anything that would run into the calibration legend) */
+  ctx.textBaseline = 'top';
+  const stepS = S.timebase > 10 ? 5 : 1;
+  for (let s = 0; s <= S.timebase; s += stepS) {
+    const x = x0 + s * pxPerSec;
+    if (x > x1 - 30) continue;
+    ctx.fillText(fmtTime(t0 + s), x - 14, h - CFG.padBottom + 8);
+  }
+
+  drawOverview();
+  document.getElementById('pageLabel').textContent =
+    `${fmtTime(t0)} – ${fmtTime(t1)}  of  ${fmtTime(dur)}   ·   page ${S.page+1}/${nPages()}`;
+}
+
+function fmtTime(s) { s = s + recOffset();
+  const m = Math.floor(s / 60), ss = s - m * 60;
+  return `${String(m).padStart(2,'0')}:${ss.toFixed(1).padStart(4,'0')}`;
+}
+function nPages() { const r = rec(); return Math.max(1, Math.ceil((r.n_samples / r.sfreq) / S.timebase)); }
+
+/* ---- overview strip ---- */
+const ov = document.getElementById('overview');
+const octx = ov.getContext('2d');
+function drawOverview() {
+  const r = rec(), dpr = window.devicePixelRatio || 1;
+  const w = ov.clientWidth, h = CFG.overviewHeight;
+  ov.width = w * dpr; ov.height = h * dpr; ov.style.height = h + 'px';
+  octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  octx.fillStyle = css('--panel'); octx.fillRect(0, 0, w, h);
+  const dur = r.n_samples / r.sfreq;
+  /* tick marks each 10 s */
+  octx.strokeStyle = css('--grid-strong'); octx.lineWidth = 1;
+  for (let s = 0; s <= dur; s += 10) {
+    const x = s / dur * w;
+    octx.beginPath(); octx.moveTo(x+.5, h-7); octx.lineTo(x+.5, h); octx.stroke();
+  }
+  const px0 = LAYOUT.t0 / dur * w, px1 = Math.min(LAYOUT.t1, dur) / dur * w;
+  octx.fillStyle = css('--mark'); octx.fillRect(px0, 0, Math.max(px1 - px0, 2), h);
+  octx.strokeStyle = css('--accent'); octx.lineWidth = 1.5;
+  octx.strokeRect(px0 + .5, .5, Math.max(px1 - px0, 2), h - 1);
+}
+
+
+
+function nPagesSafe() { const r = rec(); return r ? nPages() : 1; }
+function drawOrPlaceholder() {
+  if (S.mode !== 'trace') return;
+  const r = rec(), ph = document.getElementById('placeholder'), e = ex();
+  document.querySelectorAll('#controls select, #btnPrev, #btnNext').forEach(x => x.disabled = !r);
+  if (!r) {
+    ph.innerHTML = `<div><b>EEG signal not available for this example</b><br>` +
+      `<code>signals/${e.id}.json</code> is missing or still loading.<br>` +
+      `The video on the other tab is still what the model saw.</div>`;
+    ph.classList.add('on'); document.getElementById('pageLabel').textContent = '—';
+    const dpr = window.devicePixelRatio || 1; ov.width = ov.clientWidth * dpr; ov.height = CFG.overviewHeight * dpr;
+    return;
+  }
+  ph.classList.remove('on'); draw();
+}
+ov.addEventListener('click', e => {
+  const r = rec(); if (!r) return;
+  const dur = r.n_samples / r.sfreq;
+  const x = e.clientX - ov.getBoundingClientRect().left;
+  S.page = Math.min(nPages() - 1, Math.max(0, Math.floor(x / ov.clientWidth * dur / S.timebase)));
+  draw();
+});
+
+function selectCtl(label, options, value, onChange) {
+  const s = el('select', {onchange: e => onChange(e.target.value)});
+  options.forEach(o => {
+    const opt = el('option', {value: o.v}, o.t);
+    if (String(o.v) === String(value)) opt.selected = true;
+    s.appendChild(opt);
+  });
+  return el('div', {class: 'ctl'}, el('label', {}, label), s);
+}
+
+
+function renderControls() {
+  const c = document.getElementById('controls');
+  c.innerHTML = '';
+  c.append(
+    selectCtl('Montage', Object.entries(MONTAGES).map(([k, m]) => ({v: k, t: m.name})), S.montage,
+      v => { S.montage = S.montagePref = v; drawOrPlaceholder(); }),
+    selectCtl('Sensitivity', CFG.sensitivities.map(v => ({v, t: v + ' µV/mm'})), S.sens, v => { S.sens = +v; drawOrPlaceholder(); }),
+    selectCtl('Time base', CFG.timebases.map(v => ({v, t: v + ' s/page'})), S.timebase, v => { S.timebase = +v; S.page = 0; drawOrPlaceholder(); }),
+    selectCtl('HP', CFG.highpass.map(o => ({v: o.v, t: o.t})), S.hp, v => { S.hp = +v; drawOrPlaceholder(); }),
+    selectCtl('LP', CFG.lowpass.map(o => ({v: o.v, t: o.t})), S.lp, v => { S.lp = +v; drawOrPlaceholder(); }),
+    selectCtl('Notch', CFG.notchOptions.map(o => ({v: o.v, t: o.t})), S.notch, v => { S.notch = +v; drawOrPlaceholder(); })
+  );
+}
+/* A montage is only usable if the recording carries the electrodes it needs. HMC is
+   polysomnography - F4, C4, O2, C3 only - so longitudinal bipolar derives the single
+   pair F4-C4 and transverse bipolar derives nothing at all. Honour the clinician's
+   chosen montage wherever it works, and fall back to the one that shows the most
+   channels where it does not. Re-resolved only when the recording changes, so an
+   explicit choice is never overridden mid-recording. */
+function resolveMontage() {
+  const r = rec();
+  if (!r || S.montageFor === r.id) return;
+  S.montageFor = r.id;
+  const rowsUnder = m => { const o = S.montage; S.montage = m; 
+                           const n = montageRows(r).length; S.montage = o; return n; };
+  if (rowsUnder(S.montagePref) >= CFG.minMontageRows) { S.montage = S.montagePref; return; }
+  S.montage = CFG.montageFallback.find(m => rowsUnder(m) >= CFG.minMontageRows)
+           || CFG.montageFallback.reduce((b, m) => rowsUnder(m) > rowsUnder(b) ? m : b,
+                                         S.montagePref);
+}
+
+
+
+/* page label shows RECORDING seconds (window start offset added) so it matches the trace's timestamps */
+function recOffset() { const r = rec(); return r && r.window_start_s ? r.window_start_s : (ex().span_s ? ex().span_s[0] : 0); }
+const _fmtTime = fmtTime;
+function setMode(m) {
+  S.mode = m;
+  document.getElementById('modeVideo').classList.toggle('on', m === 'video');
+  document.getElementById('modeTrace').classList.toggle('on', m === 'trace');
+  for (const id of ['stage', 'vbar', 'spanInfo']) document.getElementById(id).classList.toggle('hide', m !== 'video');
+  for (const id of ['canvasWrap', 'navbar', 'controls', 'btnLoad']) document.getElementById(id).classList.toggle('hide', m !== 'trace');
+  if (m === 'trace') {
+    vid.pause();
+    const r = rec();
+    if (r) { resolveMontage(); const t = frameOf() * ex().frame_s; S.page = Math.min(nPages() - 1, Math.floor(t / S.timebase)); }
+    renderControls(); drawOrPlaceholder();
+  }
+}
+document.getElementById('modeVideo').onclick = () => setMode('video');
+document.getElementById('modeTrace').onclick = () => setMode('trace');
+document.getElementById('btnPrev').onclick = () => { if (rec()) { S.page = Math.max(0, S.page - 1); draw(); } };
+document.getElementById('btnNext').onclick = () => { if (rec()) { S.page = Math.min(nPages() - 1, S.page + 1); draw(); } };
+document.getElementById('btnLoad').onclick = () => document.getElementById('fileRec').click();
+document.getElementById('fileRec').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { try { const b = JSON.parse(rd.result); RECORDINGS = b.recordings || b; indexRecordings();
+    S.decoded.clear(); S.filtered.clear(); S.montageFor = null; S.page = 0; drawOrPlaceholder(); renderWorklist(); }
+    catch (err) { alert('Could not load that recordings file: ' + err.message); } };
+  rd.readAsText(f); e.target.value = '';
+};
+/* signals are fetched one example at a time from signals/<id>.json, next to this page */
+const FETCHED = new Set();
+async function fetchSignal(e) {
+  if (!e || FETCHED.has(e.id) || recordingFor(e)) return;
+  FETCHED.add(e.id);
+  try {
+    const res = await fetch(`signals/${encodeURIComponent(e.id)}.json`, {cache: 'force-cache'});
+    if (!res.ok) return;
+    const b = await res.json();
+    RECORDINGS = RECORDINGS.concat(b.recordings || b); indexRecordings();
+    if (ex().id === e.id) { S.montageFor = null; if (S.mode === 'trace') { resolveMontage(); renderControls(); drawOrPlaceholder(); } }
+    renderWorklist();
+  } catch (err) { /* file:// or missing — the Load button still works */ }
+}
+function fetchSignals() { fetchSignal(ex()); }
+window.addEventListener('resize', () => drawOrPlaceholder());
 
 /* ---- panels ---- */
 function renderQuestion() {
@@ -425,7 +906,7 @@ function renderWorklist() {
       w.append(el('button', {class: 'wl-item' + (i === S.i ? ' active' : ''), onclick: () => { S.i = i; renderAll(); }},
         el('span', {class: 'sc' + (r.score ? ' on' : '')}, r.score ? String(r.score) : '·'),
         el('span', {}, el('div', {class: 't'}, `${String(e.n).padStart(2, '0')} · ${e.id}`),
-                       el('div', {class: 's'}, `gold ${e.gold} · ${e.options[e.gold] || ''} · ${e.frames} frames`))));
+                       el('div', {class: 's'}, `gold ${e.gold} · ${e.options[e.gold] || ''} · ${e.frames} frames` + (recordingFor(e) ? ' · EEG ✓' : '')))));
     }
   }
   w.scrollTop = scroll; const cur = w.querySelector('.wl-item.active'); if (cur) cur.scrollIntoView({block: 'nearest'});
@@ -436,7 +917,7 @@ function renderSave() {
   else if (S.savedAt) s.append(el('b', {}, 'saved ' + new Date(S.savedAt).toTimeString().slice(0, 5)), ' in this browser');
 }
 function step(d) { S.i = Math.min(EX.length - 1, Math.max(0, S.i + d)); renderAll(); }
-function renderAll() { renderQuestion(); renderWorklist(); renderReview(); loadVideo(); renderSave(); }
+function renderAll() { S.page = 0; S.montageFor = null; fetchSignal(ex()); renderQuestion(); renderWorklist(); renderReview(); loadVideo(); renderSave(); if (S.mode === 'trace') { if (rec()) resolveMontage(); renderControls(); drawOrPlaceholder(); } }
 
 /* ---- export / theme / help / keys ---- */
 function download(name, text) {
@@ -458,6 +939,8 @@ const HELP = `
 <h2>What you are looking at</h2>
 <p>Each example is an EEG segment rendered as a short video — one frame per 10-second window, with four panels: the <b>traces</b> by scalp chain, <b>band power</b> left and right, <b>scalp maps</b> for 1–8 Hz and 8–30 Hz, and a <b>sharpness</b> panel. This is exactly what our model sees. Below the video you can pause and step frame by frame; the label tells you which seconds of the recording the frame covers.</p>
 <p>The right panel shows the question, the correct answer, and a <b>reasoning trace</b> — the explanation we intend to train the model to produce for this example. Times mentioned in the trace are clickable and jump the video there.</p>
+<h4>Two views</h4>
+<p><b>Video</b> is exactly what the model saw. <b>EEG trace</b> shows the same recording as a conventional paged EEG — montage, sensitivity, time base and filters are adjustable — where that signal has been provided. Times in the trace text jump whichever view is open.</p>
 <h4>What we need from you</h4>
 <p>One score from 1 to 5 for the quality of the trace: are the described findings really there, at the stated times and locations, and is the reasoning that leads to the answer clinically sound? 1 means wrong or invented; 5 means you would sign it. Add a comment when something is off — a wrong time, a mislabelled finding, a missing feature that matters — those comments are the most valuable part.</p>
 <p>Scores save automatically in this browser; click <b>Export scores</b> when you are done and send us the file.</p>
@@ -468,14 +951,14 @@ document.getElementById('btnHelp').onclick = () => { document.getElementById('mo
 document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') e.currentTarget.classList.remove('on'); });
 window.addEventListener('keydown', e => {
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
-  if (e.key === 'ArrowRight') { e.preventDefault(); seekFrame(frameOf() + 1); }
-  else if (e.key === 'ArrowLeft') { e.preventDefault(); seekFrame(frameOf() - 1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); if (S.mode === 'trace') document.getElementById('btnNext').click(); else seekFrame(frameOf() + 1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); if (S.mode === 'trace') document.getElementById('btnPrev').click(); else seekFrame(frameOf() - 1); }
   else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
   else if (e.key === 'n') step(1); else if (e.key === 'p') step(-1);
   else if (/^[1-5]$/.test(e.key)) { const r = rv(ex()); r.score = +e.key; save(); renderReview(); renderWorklist(); }
 });
 
-restore(); renderAll();
+restore(); renderAll(); fetchSignals();
 if (!store.get('eeg-trace-review-seen')) { document.getElementById('btnHelp').click(); store.set('eeg-trace-review-seen', '1'); }
 </script>
 </body>

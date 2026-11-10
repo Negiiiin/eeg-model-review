@@ -212,6 +212,23 @@ html[data-theme="dark"] .role.boundary{background:#78350f;color:#fde68a}
 
 
 #app{grid-template-columns:250px 1fr 440px}
+#modebar{display:flex;align-items:center;gap:10px;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:5px 12px;font-size:12px;color:var(--muted)}
+.seg button.on{background:var(--accent);color:#fff;font-weight:650}
+#controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#controls .ctl{display:flex;align-items:center;gap:5px}
+#controls .ctl label{font-size:11px;color:var(--muted);font-weight:600}
+#controls select{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:3px 6px;font-size:12px}
+#canvasWrap{flex:1;position:relative;min-height:0;background:var(--paper);margin:8px 12px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+#trace{position:absolute;inset:0;width:100%;height:100%;display:block}
+#placeholder{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.6;padding:30px;background:var(--paper)}
+#placeholder.on{display:flex}
+#placeholder b{color:var(--ink)} #placeholder code{font:11px var(--mono);background:var(--bg);padding:1px 5px;border-radius:4px}
+#navbar{display:flex;align-items:center;gap:10px;padding:7px 12px}
+#overview{flex:1;height:34px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;display:block}
+#pageLabel{font:12px var(--mono);color:var(--muted);white-space:nowrap}
+.hide{display:none!important}
 #stage{flex:1;position:relative;min-height:0;background:var(--paper);margin:8px 12px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center}
 #stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;background:var(--paper)}
 #vbar{display:flex;align-items:center;gap:8px;padding:7px 12px;flex-wrap:wrap}
@@ -263,7 +280,21 @@ details.pre pre{white-space:pre-wrap;font:11px var(--mono);background:var(--bg);
 
   <main id="viewer">
     <div id="question"></div>
+    <div id="modebar">
+      <span class="seg"><button id="modeVideo" class="on">Video (what the model saw)</button><button id="modeTrace">EEG trace</button></span>
+      <div id="controls" class="hide"></div>
+      <span class="sp"></span>
+      <button class="ghost hide" id="btnLoad">Load recordings…</button>
+      <input type="file" id="fileRec" accept=".json" hidden>
+    </div>
     <div id="stage"><video id="vid" preload="metadata" playsinline></video></div>
+    <div id="canvasWrap" class="hide"><canvas id="trace"></canvas><div id="placeholder"></div></div>
+    <div id="navbar" class="hide">
+      <button class="ghost" id="btnPrev">◀ Page</button>
+      <canvas id="overview"></canvas>
+      <button class="ghost" id="btnNext">Page ▶</button>
+      <span id="pageLabel">—</span>
+    </div>
     <div id="vbar">
       <button class="ghost" id="btnPlay" title="play / pause (space)">▶ Play</button>
       <button class="ghost" id="fPrev" title="previous frame (←)">◀ frame</button>
@@ -280,11 +311,88 @@ details.pre pre{white-space:pre-wrap;font:11px var(--mono);background:var(--bg);
 
 <script>
 const DATA = __EXAMPLES__;
+let RECORDINGS = [];               // EEG signals, loaded from signals.json next to this page (or 'Load recordings…')
+const CFG = {
+  pxPerMm: 96 / 25.4,
+  labelW: 74,
+  padTop: 10,
+  padBottom: 30,
+  padRight: 14,
+  chainGap: 8,                     // extra px between montage chains
+  timebases: [5, 10, 15, 20, 30],  // seconds per page
+  defaultTimebase: 10,
+  sensitivities: [2, 3, 5, 7, 10, 15, 20, 30],  // microvolts per mm
+  defaultSensitivity: 7,
+  highpass: [
+    {v: 0,   t: 'off'}, {v: 0.5, t: '0.5 Hz'}, {v: 1,  t: '1 Hz'},
+    {v: 1.6, t: '1.6 Hz'}, {v: 5, t: '5 Hz'}
+  ],
+  lowpass: [
+    {v: 0, t: 'off'}, {v: 15, t: '15 Hz'}, {v: 35, t: '35 Hz'},
+    {v: 45, t: '45 Hz'}, {v: 70, t: '70 Hz'}
+  ],
+  defaultHP: 1,
+  defaultLP: 70,
+  notchOptions: [{v: 0, t: 'off'}, {v: 50, t: '50 Hz'}, {v: 60, t: '60 Hz'}],
+  defaultNotch: 60,
+  collapseWorklistOver: 40,        // above this many recordings, fold the worklist
+  minMontageRows: 4,               // below this, fall back to a montage that shows more
+  /* Fallback order. 'ref-raw' before 'ref-avg': re-referencing four mastoid-referenced
+     PSG channels to their own average distorts them, and AASM staging is read from
+     F4-M1 / C4-M1 / O2-M1 as recorded. */
+  montageFallback: ['ref-raw', 'ref-avg', 'bip-long', 'bip-trans'],
+  calibrationUv: 50,
+  calibrationBoxW: 90,
+  minDragPx: 4,
+  overviewHeight: 34,
+
+};
+
+/* ---- montages ------------------------------------------------------------ */
+const MONTAGES = {
+  'bip-long': {
+    name: 'Longitudinal bipolar (double banana)',
+    chains: [
+      [['Fp1','F7'],['F7','T3'],['T3','T5'],['T5','O1']],
+      [['Fp2','F8'],['F8','T4'],['T4','T6'],['T6','O2']],
+      [['Fp1','F3'],['F3','C3'],['C3','P3'],['P3','O1']],
+      [['Fp2','F4'],['F4','C4'],['C4','P4'],['P4','O2']],
+      [['Fz','Cz'],['Cz','Pz']]
+    ]
+  },
+  'bip-trans': {
+    name: 'Transverse bipolar',
+    chains: [
+      [['F7','F3'],['F3','Fz'],['Fz','F4'],['F4','F8']],
+      [['T3','C3'],['C3','Cz'],['Cz','C4'],['C4','T4']],
+      [['T5','P3'],['P3','Pz'],['Pz','P4'],['P4','T6']]
+    ]
+  },
+  'ref-avg': {
+    name: 'Referential — average reference',
+    single: ['Fp1','Fp2','F7','F3','Fz','F4','F8','T3','C3','Cz','C4','T4','T5','P3','Pz','P4','T6','O1','O2'],
+    avg: true
+  },
+  'ref-raw': {
+    name: 'Referential — as recorded',
+    single: ['Fp1','Fp2','F7','F3','Fz','F4','F8','T3','C3','Cz','C4','T4','T5','P3','Pz','P4','T6','O1','O2'],
+    avg: false
+  }
+};
+const DEFAULT_MONTAGE = 'bip-long';
+
+
+
+
 const EX = DATA.examples;
 const CORPUS_ORDER = ['tuab','tusz','tuep','tuev_events','hmc','eegmat','tusl_events'];
 const SCORE_ANCHORS = {1: 'wrong or invented', 2: 'mostly inaccurate', 3: 'partly right', 4: 'accurate, minor issues', 5: 'accurate and clinically sound'};
 
-const S = {i: 0, reviews: {}, reviewer: '', savedAt: null, collapsed: null, lastC: null};
+const S = {i: 0, reviews: {}, reviewer: '', savedAt: null, collapsed: null, lastC: null,
+  mode: 'video',
+  montage: DEFAULT_MONTAGE, montagePref: DEFAULT_MONTAGE, montageFor: null,
+  timebase: CFG.defaultTimebase, sens: CFG.defaultSensitivity, hp: CFG.defaultHP, lp: CFG.defaultLP, notch: CFG.defaultNotch,
+  page: 0, decoded: new Map(), filtered: new Map()};
 const store = (() => {
   let ok = false; try { localStorage.setItem('__t','1'); localStorage.removeItem('__t'); ok = true; } catch (e) {}
   const mem = {};
@@ -322,7 +430,11 @@ document.getElementById('btnPlay').onclick = togglePlay;
 vid.addEventListener('play', () => document.getElementById('btnPlay').textContent = '❚❚ Pause');
 vid.addEventListener('pause', () => document.getElementById('btnPlay').textContent = '▶ Play');
 vid.addEventListener('click', togglePlay);
-function seekRecSec(t) { const e = ex(); seekFrame(Math.floor((t - e.span_s[0]) / e.frame_s)); }
+function seekRecSec(t) {
+  const e = ex();
+  if (S.mode === 'trace' && rec()) { S.page = Math.min(nPages() - 1, Math.max(0, Math.floor((t - recOffset()) / S.timebase))); draw(); return; }
+  seekFrame(Math.floor((t - e.span_s[0]) / e.frame_s));
+}
 function renderFrameLabel() {
   const e = ex(), k = frameOf(), a = e.span_s[0] + k * e.frame_s;
   document.getElementById('frameLabel').textContent = `frame ${k + 1}/${e.frames} · ${a.toFixed(0)}–${(a + e.frame_s).toFixed(0)} s`;
@@ -356,6 +468,375 @@ function linkTimes(text) {
   frag.append(document.createTextNode(text.slice(last)));
   return frag;
 }
+
+
+/* ==========================================================================
+   EEG TRACE VIEWER (from the annotation station)
+   ========================================================================== */
+const REC_BY_ID = new Map();
+function indexRecordings() { REC_BY_ID.clear(); RECORDINGS.forEach(r => REC_BY_ID.set(String(r.id).toLowerCase(), r)); }
+function stemOf(id) { const m = /^(tuab|tusz|tuep|tuev|hmc|eegmat|tusl)_(.+)$/i.exec(id); return (m ? m[2] : id).toLowerCase(); }
+function recordingFor(e) {
+  if (!RECORDINGS.length) return null;
+  const w = String(e.signal_id || e.id).toLowerCase();
+  if (REC_BY_ID.has(w)) return REC_BY_ID.get(w);
+  const st = stemOf(e.id);
+  return RECORDINGS.find(r => String(r.id).toLowerCase().includes(st)) || null;
+}
+function rec() { return recordingFor(ex()); }
+/* ==========================================================================
+   3. SIGNAL LAYER
+   ========================================================================== */
+/* ==========================================================================
+   3. SIGNAL LAYER
+   ========================================================================== */
+function decode(rec) {
+  if (S.decoded.has(rec.id)) return S.decoded.get(rec.id);
+  const bin = atob(rec.data);
+  const buf = new ArrayBuffer(bin.length);
+  const u8 = new Uint8Array(buf);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const i16 = new Int16Array(buf);
+  const n = rec.n_samples, out = [];
+  for (let c = 0; c < rec.channels.length; c++) {
+    const a = new Float32Array(n);
+    for (let i = 0; i < n; i++) a[i] = i16[c * n + i] * rec.scale;
+    out.push(a);
+  }
+  S.decoded.set(rec.id, out);
+  return out;
+}
+
+/* RBJ biquad, applied forward then backward (zero phase) */
+function biquad(type, f0, fs, Q) {
+  const w0 = 2 * Math.PI * f0 / fs, c = Math.cos(w0), s = Math.sin(w0), alpha = s / (2 * Q);
+  let b0, b1, b2, a0, a1, a2;
+  if (type === 'lp')      { b0=(1-c)/2; b1=1-c;    b2=(1-c)/2; a0=1+alpha; a1=-2*c; a2=1-alpha; }
+  else if (type === 'hp') { b0=(1+c)/2; b1=-(1+c); b2=(1+c)/2; a0=1+alpha; a1=-2*c; a2=1-alpha; }
+  else                    { b0=1;       b1=-2*c;   b2=1;       a0=1+alpha; a1=-2*c; a2=1-alpha; } // notch
+  return {b0:b0/a0, b1:b1/a0, b2:b2/a0, a1:a1/a0, a2:a2/a0};
+}
+function applyOnce(x, k, reverse) {
+  const n = x.length, y = new Float32Array(n);
+  let x1=0,x2=0,y1=0,y2=0;
+  const first = reverse ? n-1 : 0, step = reverse ? -1 : 1;
+  for (let m = 0; m < n; m++) {
+    const i = first + m*step, xi = x[i];
+    const yi = k.b0*xi + k.b1*x1 + k.b2*x2 - k.a1*y1 - k.a2*y2;
+    x2=x1; x1=xi; y2=y1; y1=yi; y[i]=yi;
+  }
+  return y;
+}
+function filtfilt(x, k) { return applyOnce(applyOnce(x, k, false), k, true); }
+
+function filteredSignals(rec) {
+  const key = [rec.id, S.hp, S.lp, S.notch].join('|');
+  if (S.filtered.has(key)) return S.filtered.get(key);
+  const raw = decode(rec), fs = rec.sfreq;
+  const kernels = [];
+  if (S.hp > 0)    kernels.push(biquad('hp', S.hp, fs, 0.707));
+  if (S.lp > 0 && S.lp < fs/2) kernels.push(biquad('lp', S.lp, fs, 0.707));
+  if (S.notch > 0 && S.notch < fs/2) kernels.push(biquad('notch', S.notch, fs, 30));
+  const out = raw.map(ch => kernels.reduce((sig, k) => filtfilt(sig, k), ch));
+  S.filtered.set(key, out);
+  return out;
+}
+
+/* Build the display rows for the active montage. */
+function montageRows(rec) {
+  const m = MONTAGES[S.montage], sig = filteredSignals(rec);
+  const idx = {}; rec.channels.forEach((c, i) => idx[c] = i);
+  const n = rec.n_samples;
+  const rows = [];
+  if (m.single) {
+    let avg = null;
+    if (m.avg) {
+      avg = new Float32Array(n);
+      const present = m.single.filter(c => c in idx);
+      for (const c of present) { const a = sig[idx[c]]; for (let i=0;i<n;i++) avg[i] += a[i]; }
+      for (let i=0;i<n;i++) avg[i] /= present.length;
+    }
+    for (const c of m.single) {
+      if (!(c in idx)) continue;
+      const a = sig[idx[c]];
+      let d;
+      if (avg) { d = new Float32Array(n); for (let i=0;i<n;i++) d[i] = a[i]-avg[i]; }
+      else d = a;
+      rows.push({name: c + (m.avg ? '-Avg' : ''), members: [c], data: d, gapAfter: false});
+    }
+  } else {
+    m.chains.forEach((chain, ci) => {
+      chain.forEach((pair, pi) => {
+        const [a, b] = pair;
+        if (!(a in idx) || !(b in idx)) return;
+        const A = sig[idx[a]], B = sig[idx[b]], d = new Float32Array(n);
+        for (let i=0;i<n;i++) d[i] = A[i]-B[i];
+        rows.push({name: a+'-'+b, members: [a,b], data: d,
+                   gapAfter: pi === chain.length-1 && ci < m.chains.length-1});
+      });
+    });
+  }
+  return rows;
+}
+
+
+const cv = document.getElementById('trace');
+const ctx = cv.getContext('2d');
+let LAYOUT = {rows:[], rowY:[], plotX0:0, plotX1:0, w:0, h:0};
+
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function draw() {
+  const r = rec(), wrap = document.getElementById('canvasWrap');
+  const dpr = window.devicePixelRatio || 1;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  LAYOUT.w = w; LAYOUT.h = h;
+
+  ctx.fillStyle = css('--paper'); ctx.fillRect(0, 0, w, h);
+
+  const rows = montageRows(r);
+  const x0 = CFG.labelW, x1 = w - CFG.padRight;
+  LAYOUT.rows = rows; LAYOUT.plotX0 = x0; LAYOUT.plotX1 = x1;
+
+  const gaps = rows.filter(rw => rw.gapAfter).length;
+  const usable = h - CFG.padTop - CFG.padBottom - gaps * CFG.chainGap;
+  const rowH = usable / rows.length;
+  let y = CFG.padTop + rowH / 2;
+  LAYOUT.rowY = [];
+  for (const rw of rows) { LAYOUT.rowY.push(y); y += rowH + (rw.gapAfter ? CFG.chainGap : 0); }
+  LAYOUT.rowH = rowH;
+
+  const dur = r.n_samples / r.sfreq;
+  const t0 = S.page * S.timebase;
+  const t1 = Math.min(t0 + S.timebase, dur);
+  LAYOUT.t0 = t0; LAYOUT.t1 = t0 + S.timebase;
+  const pxPerSec = (x1 - x0) / S.timebase;
+  const uvToPx = CFG.pxPerMm / S.sens;
+
+  
+
+
+  /* grid: 1 s light, 5 s strong */
+  ctx.lineWidth = 1;
+  for (let s = 0; s <= S.timebase; s++) {
+    const x = x0 + s * pxPerSec;
+    ctx.strokeStyle = (s % 5 === 0) ? css('--grid-strong') : css('--grid');
+    ctx.beginPath(); ctx.moveTo(x + .5, CFG.padTop - 4); ctx.lineTo(x + .5, h - CFG.padBottom + 4); ctx.stroke();
+  }
+
+  /* traces */
+  ctx.lineWidth = 1;
+  const clampPx = rowH * 2.2;
+  rows.forEach((rw, i) => {
+    const yc = LAYOUT.rowY[i];
+    const selected = false;
+    ctx.strokeStyle = selected ? css('--accent') : css('--trace');
+    ctx.lineWidth = selected ? 1.4 : 1;
+    ctx.beginPath();
+    const i0 = Math.max(0, Math.floor(t0 * r.sfreq));
+    const i1 = Math.min(r.n_samples - 1, Math.ceil(LAYOUT.t1 * r.sfreq));
+    const spp = (i1 - i0) / (x1 - x0);      // samples per pixel
+    if (spp > 2) {                           // min/max decimation
+      for (let px = 0; px <= x1 - x0; px++) {
+        const s0 = i0 + Math.floor(px * spp), s1 = Math.min(i1, i0 + Math.floor((px+1) * spp));
+        let mn = Infinity, mx = -Infinity;
+        for (let s = s0; s <= s1; s++) { const v = rw.data[s]; if (v < mn) mn = v; if (v > mx) mx = v; }
+        const yA = yc - Math.max(-clampPx, Math.min(clampPx, mx * uvToPx));
+        const yB = yc - Math.max(-clampPx, Math.min(clampPx, mn * uvToPx));
+        if (px === 0) ctx.moveTo(x0, yA); else ctx.lineTo(x0 + px, yA);
+        ctx.lineTo(x0 + px, yB);
+      }
+    } else {
+      for (let s = i0; s <= i1; s++) {
+        const x = x0 + (s / r.sfreq - t0) * pxPerSec;
+        const yv = yc - Math.max(-clampPx, Math.min(clampPx, rw.data[s] * uvToPx));
+        if (s === i0) ctx.moveTo(x, yv); else ctx.lineTo(x, yv);
+      }
+    }
+    ctx.stroke();
+  });
+
+  /* labels */
+  ctx.font = '11px ' + css('--mono');
+  ctx.textBaseline = 'middle';
+  rows.forEach((rw, i) => {
+    const selected = false;
+    if (selected) {
+      ctx.fillStyle = css('--accent-soft');
+      ctx.fillRect(2, LAYOUT.rowY[i] - rowH/2, CFG.labelW - 6, rowH);
+    }
+    ctx.fillStyle = selected ? css('--accent') : css('--muted');
+    ctx.fillText(rw.name, 6, LAYOUT.rowY[i]);
+  });
+
+  /* calibration bar: CFG.calibrationUv over 1 s, drawn inside the plot, bottom-right */
+  const calH = Math.min(CFG.calibrationUv * uvToPx, LAYOUT.rowH * 1.6);
+  const cbx = x1 - CFG.calibrationBoxW, cby = h - CFG.padBottom - 6;
+  ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cbx, cby); ctx.lineTo(cbx, cby - calH); ctx.lineTo(cbx + pxPerSec, cby - calH);
+  ctx.stroke();
+  ctx.fillStyle = css('--muted'); ctx.font = '10px ' + css('--mono'); ctx.textBaseline = 'top';
+  ctx.fillText(CFG.calibrationUv + ' µV / 1 s', cbx + 3, cby - calH - 12);
+
+  /* time axis (skip anything that would run into the calibration legend) */
+  ctx.textBaseline = 'top';
+  const stepS = S.timebase > 10 ? 5 : 1;
+  for (let s = 0; s <= S.timebase; s += stepS) {
+    const x = x0 + s * pxPerSec;
+    if (x > x1 - 30) continue;
+    ctx.fillText(fmtTime(t0 + s), x - 14, h - CFG.padBottom + 8);
+  }
+
+  drawOverview();
+  document.getElementById('pageLabel').textContent =
+    `${fmtTime(t0)} – ${fmtTime(t1)}  of  ${fmtTime(dur)}   ·   page ${S.page+1}/${nPages()}`;
+}
+
+function fmtTime(s) { s = s + recOffset();
+  const m = Math.floor(s / 60), ss = s - m * 60;
+  return `${String(m).padStart(2,'0')}:${ss.toFixed(1).padStart(4,'0')}`;
+}
+function nPages() { const r = rec(); return Math.max(1, Math.ceil((r.n_samples / r.sfreq) / S.timebase)); }
+
+/* ---- overview strip ---- */
+const ov = document.getElementById('overview');
+const octx = ov.getContext('2d');
+function drawOverview() {
+  const r = rec(), dpr = window.devicePixelRatio || 1;
+  const w = ov.clientWidth, h = CFG.overviewHeight;
+  ov.width = w * dpr; ov.height = h * dpr; ov.style.height = h + 'px';
+  octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  octx.fillStyle = css('--panel'); octx.fillRect(0, 0, w, h);
+  const dur = r.n_samples / r.sfreq;
+  /* tick marks each 10 s */
+  octx.strokeStyle = css('--grid-strong'); octx.lineWidth = 1;
+  for (let s = 0; s <= dur; s += 10) {
+    const x = s / dur * w;
+    octx.beginPath(); octx.moveTo(x+.5, h-7); octx.lineTo(x+.5, h); octx.stroke();
+  }
+  const px0 = LAYOUT.t0 / dur * w, px1 = Math.min(LAYOUT.t1, dur) / dur * w;
+  octx.fillStyle = css('--mark'); octx.fillRect(px0, 0, Math.max(px1 - px0, 2), h);
+  octx.strokeStyle = css('--accent'); octx.lineWidth = 1.5;
+  octx.strokeRect(px0 + .5, .5, Math.max(px1 - px0, 2), h - 1);
+}
+
+
+
+function nPagesSafe() { const r = rec(); return r ? nPages() : 1; }
+function drawOrPlaceholder() {
+  if (S.mode !== 'trace') return;
+  const r = rec(), ph = document.getElementById('placeholder'), e = ex();
+  document.querySelectorAll('#controls select, #btnPrev, #btnNext').forEach(x => x.disabled = !r);
+  if (!r) {
+    ph.innerHTML = `<div><b>EEG signal not available for this example</b><br>` +
+      `<code>signals/${e.id}.json</code> is missing or still loading.<br>` +
+      `The video on the other tab is still what the model saw.</div>`;
+    ph.classList.add('on'); document.getElementById('pageLabel').textContent = '—';
+    const dpr = window.devicePixelRatio || 1; ov.width = ov.clientWidth * dpr; ov.height = CFG.overviewHeight * dpr;
+    return;
+  }
+  ph.classList.remove('on'); draw();
+}
+ov.addEventListener('click', e => {
+  const r = rec(); if (!r) return;
+  const dur = r.n_samples / r.sfreq;
+  const x = e.clientX - ov.getBoundingClientRect().left;
+  S.page = Math.min(nPages() - 1, Math.max(0, Math.floor(x / ov.clientWidth * dur / S.timebase)));
+  draw();
+});
+
+function selectCtl(label, options, value, onChange) {
+  const s = el('select', {onchange: e => onChange(e.target.value)});
+  options.forEach(o => {
+    const opt = el('option', {value: o.v}, o.t);
+    if (String(o.v) === String(value)) opt.selected = true;
+    s.appendChild(opt);
+  });
+  return el('div', {class: 'ctl'}, el('label', {}, label), s);
+}
+
+
+function renderControls() {
+  const c = document.getElementById('controls');
+  c.innerHTML = '';
+  c.append(
+    selectCtl('Montage', Object.entries(MONTAGES).map(([k, m]) => ({v: k, t: m.name})), S.montage,
+      v => { S.montage = S.montagePref = v; drawOrPlaceholder(); }),
+    selectCtl('Sensitivity', CFG.sensitivities.map(v => ({v, t: v + ' µV/mm'})), S.sens, v => { S.sens = +v; drawOrPlaceholder(); }),
+    selectCtl('Time base', CFG.timebases.map(v => ({v, t: v + ' s/page'})), S.timebase, v => { S.timebase = +v; S.page = 0; drawOrPlaceholder(); }),
+    selectCtl('HP', CFG.highpass.map(o => ({v: o.v, t: o.t})), S.hp, v => { S.hp = +v; drawOrPlaceholder(); }),
+    selectCtl('LP', CFG.lowpass.map(o => ({v: o.v, t: o.t})), S.lp, v => { S.lp = +v; drawOrPlaceholder(); }),
+    selectCtl('Notch', CFG.notchOptions.map(o => ({v: o.v, t: o.t})), S.notch, v => { S.notch = +v; drawOrPlaceholder(); })
+  );
+}
+/* A montage is only usable if the recording carries the electrodes it needs. HMC is
+   polysomnography - F4, C4, O2, C3 only - so longitudinal bipolar derives the single
+   pair F4-C4 and transverse bipolar derives nothing at all. Honour the clinician's
+   chosen montage wherever it works, and fall back to the one that shows the most
+   channels where it does not. Re-resolved only when the recording changes, so an
+   explicit choice is never overridden mid-recording. */
+function resolveMontage() {
+  const r = rec();
+  if (!r || S.montageFor === r.id) return;
+  S.montageFor = r.id;
+  const rowsUnder = m => { const o = S.montage; S.montage = m; 
+                           const n = montageRows(r).length; S.montage = o; return n; };
+  if (rowsUnder(S.montagePref) >= CFG.minMontageRows) { S.montage = S.montagePref; return; }
+  S.montage = CFG.montageFallback.find(m => rowsUnder(m) >= CFG.minMontageRows)
+           || CFG.montageFallback.reduce((b, m) => rowsUnder(m) > rowsUnder(b) ? m : b,
+                                         S.montagePref);
+}
+
+
+
+/* page label shows RECORDING seconds (window start offset added) so it matches the trace's timestamps */
+function recOffset() { const r = rec(); return r && r.window_start_s ? r.window_start_s : (ex().span_s ? ex().span_s[0] : 0); }
+const _fmtTime = fmtTime;
+function setMode(m) {
+  S.mode = m;
+  document.getElementById('modeVideo').classList.toggle('on', m === 'video');
+  document.getElementById('modeTrace').classList.toggle('on', m === 'trace');
+  for (const id of ['stage', 'vbar', 'spanInfo']) document.getElementById(id).classList.toggle('hide', m !== 'video');
+  for (const id of ['canvasWrap', 'navbar', 'controls', 'btnLoad']) document.getElementById(id).classList.toggle('hide', m !== 'trace');
+  if (m === 'trace') {
+    vid.pause();
+    const r = rec();
+    if (r) { resolveMontage(); const t = frameOf() * ex().frame_s; S.page = Math.min(nPages() - 1, Math.floor(t / S.timebase)); }
+    renderControls(); drawOrPlaceholder();
+  }
+}
+document.getElementById('modeVideo').onclick = () => setMode('video');
+document.getElementById('modeTrace').onclick = () => setMode('trace');
+document.getElementById('btnPrev').onclick = () => { if (rec()) { S.page = Math.max(0, S.page - 1); draw(); } };
+document.getElementById('btnNext').onclick = () => { if (rec()) { S.page = Math.min(nPages() - 1, S.page + 1); draw(); } };
+document.getElementById('btnLoad').onclick = () => document.getElementById('fileRec').click();
+document.getElementById('fileRec').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { try { const b = JSON.parse(rd.result); RECORDINGS = b.recordings || b; indexRecordings();
+    S.decoded.clear(); S.filtered.clear(); S.montageFor = null; S.page = 0; drawOrPlaceholder(); renderWorklist(); }
+    catch (err) { alert('Could not load that recordings file: ' + err.message); } };
+  rd.readAsText(f); e.target.value = '';
+};
+/* signals are fetched one example at a time from signals/<id>.json, next to this page */
+const FETCHED = new Set();
+async function fetchSignal(e) {
+  if (!e || FETCHED.has(e.id) || recordingFor(e)) return;
+  FETCHED.add(e.id);
+  try {
+    const res = await fetch(`signals/${encodeURIComponent(e.id)}.json`, {cache: 'force-cache'});
+    if (!res.ok) return;
+    const b = await res.json();
+    RECORDINGS = RECORDINGS.concat(b.recordings || b); indexRecordings();
+    if (ex().id === e.id) { S.montageFor = null; if (S.mode === 'trace') { resolveMontage(); renderControls(); drawOrPlaceholder(); } }
+    renderWorklist();
+  } catch (err) { /* file:// or missing — the Load button still works */ }
+}
+function fetchSignals() { fetchSignal(ex()); }
+window.addEventListener('resize', () => drawOrPlaceholder());
 
 /* ---- panels ---- */
 function renderQuestion() {
@@ -425,7 +906,7 @@ function renderWorklist() {
       w.append(el('button', {class: 'wl-item' + (i === S.i ? ' active' : ''), onclick: () => { S.i = i; renderAll(); }},
         el('span', {class: 'sc' + (r.score ? ' on' : '')}, r.score ? String(r.score) : '·'),
         el('span', {}, el('div', {class: 't'}, `${String(e.n).padStart(2, '0')} · ${e.id}`),
-                       el('div', {class: 's'}, `gold ${e.gold} · ${e.options[e.gold] || ''} · ${e.frames} frames`))));
+                       el('div', {class: 's'}, `gold ${e.gold} · ${e.options[e.gold] || ''} · ${e.frames} frames` + (recordingFor(e) ? ' · EEG ✓' : '')))));
     }
   }
   w.scrollTop = scroll; const cur = w.querySelector('.wl-item.active'); if (cur) cur.scrollIntoView({block: 'nearest'});
@@ -436,7 +917,7 @@ function renderSave() {
   else if (S.savedAt) s.append(el('b', {}, 'saved ' + new Date(S.savedAt).toTimeString().slice(0, 5)), ' in this browser');
 }
 function step(d) { S.i = Math.min(EX.length - 1, Math.max(0, S.i + d)); renderAll(); }
-function renderAll() { renderQuestion(); renderWorklist(); renderReview(); loadVideo(); renderSave(); }
+function renderAll() { S.page = 0; S.montageFor = null; fetchSignal(ex()); renderQuestion(); renderWorklist(); renderReview(); loadVideo(); renderSave(); if (S.mode === 'trace') { if (rec()) resolveMontage(); renderControls(); drawOrPlaceholder(); } }
 
 /* ---- export / theme / help / keys ---- */
 function download(name, text) {
@@ -458,6 +939,8 @@ const HELP = `
 <h2>What you are looking at</h2>
 <p>Each example is an EEG segment rendered as a short video — one frame per 10-second window, with four panels: the <b>traces</b> by scalp chain, <b>band power</b> left and right, <b>scalp maps</b> for 1–8 Hz and 8–30 Hz, and a <b>sharpness</b> panel. This is exactly what our model sees. Below the video you can pause and step frame by frame; the label tells you which seconds of the recording the frame covers.</p>
 <p>The right panel shows the question, the correct answer, and a <b>reasoning trace</b> — the explanation we intend to train the model to produce for this example. Times mentioned in the trace are clickable and jump the video there.</p>
+<h4>Two views</h4>
+<p><b>Video</b> is exactly what the model saw. <b>EEG trace</b> shows the same recording as a conventional paged EEG — montage, sensitivity, time base and filters are adjustable — where that signal has been provided. Times in the trace text jump whichever view is open.</p>
 <h4>What we need from you</h4>
 <p>One score from 1 to 5 for the quality of the trace: are the described findings really there, at the stated times and locations, and is the reasoning that leads to the answer clinically sound? 1 means wrong or invented; 5 means you would sign it. Add a comment when something is off — a wrong time, a mislabelled finding, a missing feature that matters — those comments are the most valuable part.</p>
 <p>Scores save automatically in this browser; click <b>Export scores</b> when you are done and send us the file.</p>
@@ -468,14 +951,14 @@ document.getElementById('btnHelp').onclick = () => { document.getElementById('mo
 document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') e.currentTarget.classList.remove('on'); });
 window.addEventListener('keydown', e => {
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
-  if (e.key === 'ArrowRight') { e.preventDefault(); seekFrame(frameOf() + 1); }
-  else if (e.key === 'ArrowLeft') { e.preventDefault(); seekFrame(frameOf() - 1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); if (S.mode === 'trace') document.getElementById('btnNext').click(); else seekFrame(frameOf() + 1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); if (S.mode === 'trace') document.getElementById('btnPrev').click(); else seekFrame(frameOf() - 1); }
   else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
   else if (e.key === 'n') step(1); else if (e.key === 'p') step(-1);
   else if (/^[1-5]$/.test(e.key)) { const r = rv(ex()); r.score = +e.key; save(); renderReview(); renderWorklist(); }
 });
 
-restore(); renderAll();
+restore(); renderAll(); fetchSignals();
 if (!store.get('eeg-trace-review-seen')) { document.getElementById('btnHelp').click(); store.set('eeg-trace-review-seen', '1'); }
 </script>
 </body>
