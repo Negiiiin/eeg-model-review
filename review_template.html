@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EEG Reasoning Trace Review</title>
+<style>
+
+
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --ink:#12161c; --muted:#5d6672; --line:#d9dee5;
+  --accent:#1f6feb; --accent-soft:#e7f0fe; --ok:#137a4a; --warn:#a8620a; --danger:#b3261e;
+  --trace:#101418; --grid:#e9ecf1; --grid-strong:#cfd6e0; --paper:#ffffff;
+  --mark:rgba(31,111,235,.16); --mark-strong:rgba(31,111,235,.34); --mark-line:#1f6feb;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#9aa4b2; --line:#2a313b;
+  --accent:#5b9bff; --accent-soft:#16243c; --ok:#3fb27f; --warn:#d9a441; --danger:#f2776b;
+  --trace:#d7e2ee; --grid:#1d232c; --grid-strong:#2f3946; --paper:#0b0e13;
+  --mark:rgba(91,155,255,.20); --mark-strong:rgba(91,155,255,.40); --mark-line:#5b9bff;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font:13px/1.45 var(--font);background:var(--bg);color:var(--ink);overflow:hidden}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+
+/* ---------- shell ---------- */
+#app{display:grid;grid-template-columns:236px 1fr 400px;grid-template-rows:auto 1fr;height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:8px 14px;
+  background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:14px;margin:0;font-weight:650;letter-spacing:-.01em;white-space:nowrap}
+header .sp{flex:1}
+.savest{font-size:11px;color:var(--muted);white-space:nowrap}
+.savest b{color:var(--ok);font-weight:650}
+.savest .warn{color:var(--warn);font-weight:650}
+.savest button{margin-left:6px;padding:2px 8px;font-size:11px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--accent-soft);
+  color:var(--accent);font-size:11px;font-weight:650;letter-spacing:.03em}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:7px;padding:5px 10px}
+.ghost:hover{background:var(--accent-soft);border-color:var(--accent)}
+.primary{background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:7px;padding:6px 13px;font-weight:600}
+.primary:hover{filter:brightness(1.08)}
+.primary[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ---------- worklist ---------- */
+#worklist{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:10px}
+.wl-head{display:flex;align-items:flex-start;gap:6px;width:100%;text-align:left;font:inherit;
+  font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+  margin:12px 0 6px;padding:4px;font-weight:700;background:transparent;border:0;
+  border-radius:6px;cursor:pointer}
+.wl-head:hover{background:var(--accent-soft);color:var(--ink)}
+.wl-head:first-child{margin-top:2px}
+.wl-head .caret{flex:none;width:9px;text-align:center;line-height:1.35;
+  transition:transform .12s ease}
+.wl-head.closed .caret{transform:rotate(-90deg)}
+.wl-head .ttl{flex:1;white-space:normal;line-height:1.35}
+.wl-head .cnt{flex:none;text-transform:none;letter-spacing:0;font-weight:600;opacity:.8;
+  font-variant-numeric:tabular-nums}
+.wl-group{display:flex;flex-direction:column}
+.wl-group.closed{display:none}
+.wl-item{display:flex;gap:8px;align-items:flex-start;width:100%;text-align:left;padding:7px 8px;
+  border:1px solid transparent;border-radius:8px;background:transparent;margin-bottom:2px;line-height:1.3}
+.wl-item:hover{background:var(--accent-soft)}
+.wl-item.active{background:var(--accent-soft);border-color:var(--accent)}
+.wl-item .t{font-size:12px;font-weight:600}
+.wl-item .s{font-size:11px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--line);margin-top:5px;flex:none}
+.dot.done{background:var(--ok)}
+.dot.partial{background:var(--warn)}
+#progress{font-size:11px;color:var(--muted);padding:6px 6px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
+
+/* ---------- viewer ---------- */
+#viewer{display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+#controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:7px 12px;
+  background:var(--panel);border-bottom:1px solid var(--line)}
+.ctl{display:flex;align-items:center;gap:5px}
+.ctl label{font-size:11px;color:var(--muted);font-weight:600}
+.ctl select,.ctl input[type=number]{border:1px solid var(--line);background:var(--panel);
+  border-radius:6px;padding:3px 6px;font-size:12px}
+#question{padding:6px 12px;background:var(--accent-soft);border-bottom:1px solid var(--line);
+  font-size:12px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+#question b{font-weight:650}
+#question .note{color:var(--muted)}
+.refchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--accent);
+  background:var(--panel);color:var(--accent);border-radius:999px;padding:1px 10px;font-weight:650;font-size:11.5px}
+.refchip .k{font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7}
+.refchip.warn{border-color:var(--warn);color:var(--warn)}
+.refchip.muted{border-color:var(--line);color:var(--muted);font-weight:500;font-style:italic}
+.wl-item .s.mismatch{color:var(--danger);font-weight:600}
+.wl-mode{display:flex;gap:4px;margin-top:6px}
+.wl-mode button{flex:1;border:1px solid var(--line);background:transparent;border-radius:6px;padding:3px 0;font-size:11px;color:var(--muted)}
+.wl-mode button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:650}
+.wl-item .ord{font:10px var(--mono);color:var(--muted);min-width:22px;text-align:right;margin-top:2px}
+.role{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:1px}
+.role.prototype{background:#dcfce7;color:#166534}
+.role.coverage{background:var(--accent-soft);color:var(--accent)}
+.role.boundary{background:#fef3c7;color:#92400e}
+.role.reserve{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+html[data-theme="dark"] .role.prototype{background:#14532d;color:#bbf7d0}
+html[data-theme="dark"] .role.boundary{background:#78350f;color:#fde68a}
+.wl-more{width:100%;border:1px dashed var(--line);background:transparent;border-radius:6px;padding:5px;font-size:11px;color:var(--muted);margin-top:6px}
+#canvasWrap{flex:1;position:relative;min-height:0;background:var(--paper);margin:8px 12px 0;
+  border:1px solid var(--line);border-radius:8px;overflow:hidden}
+#trace{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;display:block}
+#hint{position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--muted);
+  background:color-mix(in srgb,var(--paper) 85%,transparent);padding:2px 7px;border-radius:5px;pointer-events:none}
+#navbar{display:flex;align-items:center;gap:10px;padding:7px 12px}
+#overview{flex:1;height:34px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;display:block}
+#pageLabel{font:12px var(--mono);color:var(--muted);white-space:nowrap}
+
+/* ---------- form ---------- */
+#form{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#formBody{flex:1;overflow-y:auto;padding:12px 14px 16px;min-height:0}
+.sec{margin-bottom:16px}
+.sec>h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+  margin:0 0 8px;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:5px}
+.f{margin-bottom:11px}
+.f>label.q{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+.f .req{color:var(--danger);margin-left:2px}
+.opts{display:flex;flex-wrap:wrap;gap:5px}
+.opt{border:1px solid var(--line);border-radius:6px;padding:4px 9px;font-size:12px;background:var(--panel);
+  color:var(--ink)}
+.opt:hover{border-color:var(--accent)}
+.opt.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.opt.on.multi{background:var(--ok);border-color:var(--ok)}
+.f input[type=text],.f input[type=number],.f textarea{width:100%;border:1px solid var(--line);
+  border-radius:6px;padding:5px 7px;font-size:12px;background:var(--panel)}
+.f textarea{min-height:52px;resize:vertical}
+.f .hint{font-size:11px;color:var(--muted);margin-top:3px}
+.f.missing>label.q{color:var(--danger)}
+.f.missing input,.f.missing textarea{border-color:var(--danger)}
+.label-big .opt{padding:7px 12px;font-size:13px}
+
+/* intervals */
+#ivList{display:flex;flex-direction:column;gap:6px}
+.iv{border:1px solid var(--line);border-radius:7px;padding:7px 8px;background:var(--bg)}
+.iv .top{display:flex;gap:6px;align-items:center;margin-bottom:5px}
+.iv .time{font:11px var(--mono);font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline dotted}
+.iv .ch{font:11px var(--mono);color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.iv .x{border:none;background:transparent;color:var(--muted);font-size:15px;line-height:1;padding:0 3px}
+.iv .x:hover{color:var(--danger)}
+.iv select,.iv input{width:100%;border:1px solid var(--line);border-radius:5px;padding:3px 5px;font-size:11px;background:var(--panel)}
+.iv .row{display:flex;gap:5px}
+.empty{font-size:11px;color:var(--muted);font-style:italic;padding:6px 2px}
+
+
+.iv.deciding{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.iv .num{font:11px var(--mono);font-weight:700;color:#fff;background:var(--muted);border-radius:4px;padding:0 5px}
+.iv.deciding .num{background:var(--accent)}
+.iv .f{margin:8px 0 4px}
+.iv .f>label.q{font-size:11.5px}
+.iv .row2{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:start}
+.iv .opts .opt{padding:3px 7px;font-size:11px}
+.decide{width:100%;margin-top:6px;border:1px dashed var(--line);background:transparent;border-radius:6px;padding:5px;font-size:11.5px;color:var(--muted)}
+.decide:hover{border-color:var(--accent);color:var(--accent)}
+.decide.on{border-style:solid;border-color:var(--accent);color:var(--accent);font-weight:650;background:var(--accent-soft)}
+.hint.warn{color:var(--danger);font-weight:600}
+.iv{cursor:pointer}
+.iv.focus{box-shadow:0 0 0 2px var(--accent);background:var(--accent-soft)}
+.iv.deciding.focus{box-shadow:0 0 0 2px var(--accent)}
+.iv .detail{border-left:2px solid var(--accent);padding-left:8px;margin:4px 0 2px}
+.iv input,.iv .opt,.iv .decide{cursor:auto}
+.iv .opt,.iv .decide,.iv .x,.iv .time{cursor:pointer}
+#formFoot{flex:none;background:var(--panel);border-top:1px solid var(--line);
+  padding:10px 14px;display:flex;gap:8px;align-items:center}
+#formFoot .st{font-size:11px;color:var(--muted);flex:1}
+
+/* modal */
+#modal{position:fixed;inset:0;background:rgba(8,11,16,.55);display:none;align-items:center;justify-content:center;z-index:50}
+#modal.on{display:flex}
+#modalBox{background:var(--panel);border-radius:12px;max-width:760px;max-height:82vh;overflow-y:auto;
+  padding:20px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#modalBox h2{margin:0 0 4px;font-size:17px}
+#modalBox h4{margin:16px 0 4px;font-size:13px}
+#modalBox p,#modalBox li{font-size:12.5px;color:var(--ink)}
+#modalBox kbd{font:11px var(--mono);border:1px solid var(--line);border-radius:4px;padding:1px 5px;background:var(--bg)}
+@media (max-width:1200px){#app{grid-template-columns:200px 1fr 300px}}
+
+/* ---- review panel ---- */
+#review{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:14px 16px 24px;min-width:0}
+.rv-q{font-size:14px;font-weight:650;line-height:1.35;margin:0 0 10px}
+.rv-opts{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.rv-opt{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px}
+.rv-opt .k{font:11px var(--mono);font-weight:700;color:var(--muted);min-width:14px}
+.rv-opt.gold{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--panel))}
+.rv-opt.pred{box-shadow:0 0 0 2px var(--accent) inset}
+.rv-opt .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:4px;padding:1px 6px}
+.rv-opt .tag.gold{background:var(--ok);color:#fff}
+.rv-opt .tag.pred{background:var(--accent);color:#fff}
+.verdict{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:700}
+.verdict.ok{background:color-mix(in srgb,var(--ok) 14%,var(--panel));color:var(--ok)}
+.verdict.bad{background:color-mix(in srgb,var(--danger) 12%,var(--panel));color:var(--danger)}
+.verdict.hidden{background:var(--bg);color:var(--muted);font-weight:500}
+.rv-think{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg);font-size:12.5px;line-height:1.55}
+.rv-think p{margin:0 0 9px}
+.rv-think p:last-child{margin:0}
+.rv-think .ans{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-weight:650}
+.rv-meta{font:11px var(--mono);color:var(--muted);margin:8px 0 14px;display:flex;gap:12px;flex-wrap:wrap}
+.blur{filter:blur(6px);user-select:none;pointer-events:none}
+.rv-note textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;background:var(--panel);resize:vertical}
+.rv-note .hint{font-size:11px;color:var(--muted);margin-top:3px}
+.wl-item .res{font:11px var(--mono);font-weight:700;min-width:14px;margin-top:2px}
+.wl-item .res.ok{color:var(--ok)} .wl-item .res.bad{color:var(--danger)}
+#placeholder{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
+  color:var(--muted);font-size:13px;line-height:1.6;padding:30px;background:var(--paper)}
+#placeholder.on{display:flex}
+#placeholder b{color:var(--ink)}
+#placeholder code{font:11px var(--mono);background:var(--bg);padding:1px 5px;border-radius:4px}
+
+
+#app{grid-template-columns:250px 1fr 440px}
+#stage{flex:1;position:relative;min-height:0;background:var(--paper);margin:8px 12px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;background:var(--paper)}
+#vbar{display:flex;align-items:center;gap:8px;padding:7px 12px;flex-wrap:wrap}
+#vbar .t{font:12px var(--mono);color:var(--muted);white-space:nowrap}
+#scrub{flex:1;min-width:120px}
+#spanInfo{font-size:11.5px;color:var(--muted)}
+.rv-q{font-size:14px;font-weight:650;line-height:1.35;margin:0 0 10px}
+.rv-opts{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.rv-opt{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:12.5px}
+.rv-opt .k{font:11px var(--mono);font-weight:700;color:var(--muted);min-width:14px}
+.rv-opt.gold{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--panel))}
+.rv-opt .tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:4px;padding:1px 6px;background:var(--ok);color:#fff}
+.rv-think{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg);font-size:12.5px;line-height:1.6}
+.rv-think .ts{color:var(--accent);font-weight:650;cursor:pointer;text-decoration:underline dotted}
+.rv-think .ts:hover{background:var(--accent-soft)}
+.rv-think .ans{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-weight:650}
+.rv-meta{font:11px var(--mono);color:var(--muted);margin:8px 0 4px;display:flex;gap:12px;flex-wrap:wrap}
+details.pre{margin:0 0 10px}
+details.pre summary{font-size:11.5px;color:var(--muted);cursor:pointer}
+details.pre pre{white-space:pre-wrap;font:11px var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0 0}
+.score{display:flex;gap:6px;margin:6px 0 4px}
+.score button{flex:1;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:9px 0;font-size:16px;font-weight:700;color:var(--ink)}
+.score button:hover{border-color:var(--accent)}
+.score button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.anchors{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:8px}
+.rv-note textarea{width:100%;min-height:72px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;background:var(--panel);resize:vertical}
+.wl-item .sc{font:11px var(--mono);font-weight:700;min-width:14px;margin-top:2px;color:var(--muted)}
+.wl-item .sc.on{color:var(--ok)}
+.annot{font-size:11.5px;color:var(--muted);border-left:2px solid var(--line);padding-left:8px;margin:6px 0 10px}
+#review{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:14px 16px 24px;min-width:0}
+.savest{font-size:11px;color:var(--muted)}
+.savest b{color:var(--ok)}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>EEG Reasoning Trace Review</h1>
+    <span class="badge" id="dsBadge">—</span>
+    <span id="saveStatus" class="savest"></span>
+    <span class="sp"></span>
+    <button class="ghost" id="btnHelp">About this page</button>
+    <button class="ghost" id="btnTheme">Dark</button>
+    <button class="primary" id="btnExport">Export scores</button>
+  </header>
+
+  <nav id="worklist"></nav>
+
+  <main id="viewer">
+    <div id="question"></div>
+    <div id="stage"><video id="vid" preload="metadata" playsinline></video></div>
+    <div id="vbar">
+      <button class="ghost" id="btnPlay" title="play / pause (space)">▶ Play</button>
+      <button class="ghost" id="fPrev" title="previous frame (←)">◀ frame</button>
+      <input type="range" id="scrub" min="0" max="0" step="1" value="0">
+      <button class="ghost" id="fNext" title="next frame (→)">frame ▶</button>
+      <span class="t" id="frameLabel">—</span>
+    </div>
+    <div id="spanInfo" style="padding:0 12px 8px"></div>
+  </main>
+
+  <aside id="review"></aside>
+</div>
+<div id="modal"><div id="modalBox"></div></div>
+
+<script>
+const DATA = __EXAMPLES__;
+const EX = DATA.examples;
+const CORPUS_ORDER = ['tuab','tusz','tuep','tuev_events','hmc','eegmat','tusl_events'];
+const SCORE_ANCHORS = {1: 'wrong or invented', 2: 'mostly inaccurate', 3: 'partly right', 4: 'accurate, minor issues', 5: 'accurate and clinically sound'};
+
+const S = {i: 0, reviews: {}, reviewer: '', savedAt: null, collapsed: null, lastC: null};
+const store = (() => {
+  let ok = false; try { localStorage.setItem('__t','1'); localStorage.removeItem('__t'); ok = true; } catch (e) {}
+  const mem = {};
+  return {get(k){ try { return ok ? localStorage.getItem(k) : mem[k]; } catch(e){ return mem[k]; } },
+          set(k,v){ try { if (ok) localStorage.setItem(k,v); else mem[k]=v; } catch(e){ mem[k]=v; } }, persistent: ok};
+})();
+const KEY = 'eeg-trace-review-v1';
+function save() { S.savedAt = new Date().toISOString(); store.set(KEY, JSON.stringify({reviews: S.reviews, reviewer: S.reviewer, saved_at: S.savedAt})); renderSave(); }
+function restore() { try { const o = JSON.parse(store.get(KEY) || '{}'); S.reviews = o.reviews || {}; S.reviewer = o.reviewer || ''; S.savedAt = o.saved_at || null; } catch (e) {} }
+function rv(e) { return S.reviews[e.id] ||= {score: null, comment: ''}; }
+function ex() { return EX[S.i]; }
+
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') n.className = v; else if (k === 'html') n.innerHTML = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined && v !== false) n.setAttribute(k, v);
+  }
+  kids.flat().forEach(c => n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+  return n;
+}
+function fmt(s) { const m = Math.floor(s / 60), ss = Math.round(s - m * 60); return `${m}:${String(ss).padStart(2, '0')}`; }
+
+/* ---- video / frames ---- */
+const vid = document.getElementById('vid'), scrub = document.getElementById('scrub');
+function frameOf() { return Math.min(ex().frames - 1, Math.max(0, Math.floor(vid.currentTime + 1e-3))); }
+function seekFrame(k) {
+  const e = ex(); k = Math.min(e.frames - 1, Math.max(0, k)); vid.pause();
+  const go = () => { vid.currentTime = k + 0.001; };
+  if (vid.readyState >= 1) go(); else vid.addEventListener('loadedmetadata', go, {once: true});
+}
+function togglePlay() { if (vid.paused) { if (vid.ended || vid.currentTime >= vid.duration - 0.01) vid.currentTime = 0; vid.play(); } else vid.pause(); }
+document.getElementById('btnPlay').onclick = togglePlay;
+vid.addEventListener('play', () => document.getElementById('btnPlay').textContent = '❚❚ Pause');
+vid.addEventListener('pause', () => document.getElementById('btnPlay').textContent = '▶ Play');
+vid.addEventListener('click', togglePlay);
+function seekRecSec(t) { const e = ex(); seekFrame(Math.floor((t - e.span_s[0]) / e.frame_s)); }
+function renderFrameLabel() {
+  const e = ex(), k = frameOf(), a = e.span_s[0] + k * e.frame_s;
+  document.getElementById('frameLabel').textContent = `frame ${k + 1}/${e.frames} · ${a.toFixed(0)}–${(a + e.frame_s).toFixed(0)} s`;
+  scrub.value = k;
+}
+vid.addEventListener('timeupdate', renderFrameLabel);
+vid.addEventListener('loadedmetadata', () => { scrub.max = Math.max(0, ex().frames - 1); renderFrameLabel(); });
+scrub.addEventListener('input', () => seekFrame(+scrub.value));
+document.getElementById('fPrev').onclick = () => seekFrame(frameOf() - 1);
+document.getElementById('fNext').onclick = () => seekFrame(frameOf() + 1);
+
+function loadVideo() {
+  const e = ex();
+  vid.src = e.video; vid.load();
+  scrub.max = Math.max(0, e.frames - 1); scrub.value = 0;
+  document.getElementById('spanInfo').textContent =
+    `${e.frames} frames · one frame = ${e.frame_s} s of recording · video covers ${e.span_s[0].toFixed(0)}–${e.span_s[1].toFixed(0)} s · plays at 1 frame/s — pause and step with ◀ ▶ or ← →`;
+}
+
+/* ---- timestamps in the trace become seek links ---- */
+function linkTimes(text) {
+  const frag = document.createDocumentFragment();
+  const re = /(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*s\b/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    frag.append(document.createTextNode(text.slice(last, m.index)));
+    const t = parseFloat(m[1]);
+    frag.append(el('span', {class: 'ts', title: 'jump the video to this time', onclick: () => seekRecSec(t)}, m[0]));
+    last = m.index + m[0].length;
+  }
+  frag.append(document.createTextNode(text.slice(last)));
+  return frag;
+}
+
+/* ---- panels ---- */
+function renderQuestion() {
+  const e = ex();
+  document.getElementById('dsBadge').textContent = e.corpus_code;
+  const q = document.getElementById('question'); q.innerHTML = '';
+  q.append(el('b', {}, e.question), el('span', {class: 'note'}, `· ${e.id}`));
+}
+function annotationText(e) {
+  const a = e.annotation || {};
+  if (a.seizures_s) return 'Dataset annotation — seizures at ' + a.seizures_s.map(s => `${s[0].toFixed(1)}–${s[1].toFixed(1)} s`).join(', ');
+  if (a.event_s) return `Dataset annotation — ${a.event_label || 'event'} at ${a.event_s[0]}–${a.event_s[1]} s`;
+  if (a.stage) return `Dataset annotation — ${a.stage}`;
+  const ks = Object.keys(a); return ks.length ? 'Dataset annotation — ' + JSON.stringify(a) : '';
+}
+function renderReview() {
+  const e = ex(), r = rv(e), R = document.getElementById('review'); R.innerHTML = '';
+
+  const s1 = el('div', {class: 'sec'}, el('h3', {}, 'Question and correct answer'));
+  s1.append(el('p', {class: 'rv-q'}, e.question));
+  const opts = el('div', {class: 'rv-opts'});
+  Object.entries(e.options).forEach(([k, v]) => {
+    const row = el('div', {class: 'rv-opt' + (k === e.gold ? ' gold' : '')}, el('span', {class: 'k'}, k), el('span', {}, v));
+    if (k === e.gold) row.append(el('span', {class: 'tag'}, 'correct'));
+    opts.append(row);
+  });
+  s1.append(opts);
+  const ann = annotationText(e); if (ann) s1.append(el('div', {class: 'annot'}, ann));
+  if (e.prompt_preamble) s1.append(el('details', {class: 'pre'}, el('summary', {}, 'Full prompt the model was given'), el('pre', {}, e.prompt_preamble + '\n\n' + e.question)));
+  R.append(s1);
+
+  const s2 = el('div', {class: 'sec'}, el('h3', {}, 'Reasoning trace'));
+  const box = el('div', {class: 'rv-think'});
+  e.trace.split(/\n\s*\n/).forEach(p => { const P = el('p', {}); P.append(linkTimes(p)); box.append(P); });
+  if (e.trace_answer) box.append(el('div', {class: 'ans'}, `Answer: ${e.trace_answer}` + (e.options[e.trace_answer] ? ` — ${e.options[e.trace_answer]}` : '') + (e.trace_answer === e.gold ? '' : '  (≠ correct answer)')));
+  s2.append(box, el('div', {class: 'rv-meta'}, el('span', {}, 'blue times jump the video'), el('span', {}, `${e.trace.split(/\s+/).length} words`)));
+  R.append(s2);
+
+  const s3 = el('div', {class: 'sec rv-note'}, el('h3', {}, 'Your review'));
+  s3.append(el('label', {class: 'q', style: 'display:block;font-size:12px;font-weight:600;margin-bottom:4px'}, 'Quality of this reasoning trace', el('span', {class: 'req'}, '*')));
+  const sc = el('div', {class: 'score'});
+  [1, 2, 3, 4, 5].forEach(k => sc.append(el('button', {class: r.score === k ? 'on' : '', title: SCORE_ANCHORS[k],
+    onclick: () => { r.score = r.score === k ? null : k; save(); renderReview(); renderWorklist(); }}, String(k))));
+  s3.append(sc, el('div', {class: 'anchors'}, el('span', {}, '1 · ' + SCORE_ANCHORS[1]), el('span', {}, '5 · ' + SCORE_ANCHORS[5])));
+  s3.append(el('label', {class: 'q', style: 'display:block;font-size:12px;font-weight:600;margin:8px 0 4px'}, 'Comments (optional)'));
+  const ta = el('textarea', {placeholder: 'What is wrong or missing? e.g. "the spike at 20 s is a blink", "the right finding but the wrong time", "sound reasoning"',
+    onchange: ev => { r.comment = ev.target.value; save(); }});
+  ta.value = r.comment || ''; s3.append(ta);
+  s3.append(el('div', {class: 'hint', style: 'font-size:11px;color:var(--muted);margin-top:4px'}, 'Saved automatically in this browser. Click Export scores at the end and send the file back.'));
+  R.append(s3);
+  R.append(el('div', {style: 'display:flex;gap:8px;margin-top:6px'},
+    el('button', {class: 'ghost', onclick: () => step(-1)}, 'Previous'),
+    el('button', {class: 'primary', onclick: () => step(1)}, 'Next example')));
+}
+function renderWorklist() {
+  const w = document.getElementById('worklist'), scroll = w.scrollTop; w.innerHTML = '';
+  const done = EX.filter(e => rv(e).score).length;
+  w.append(el('div', {id: 'progress'}, `${done} of ${EX.length} scored`, el('div', {}, store.persistent ? 'Progress is saved automatically' : 'Export before closing')));
+  const byC = {}; EX.forEach((e, i) => (byC[e.corpus] ||= []).push([e, i]));
+  const order = CORPUS_ORDER.filter(c => byC[c]).concat(Object.keys(byC).filter(c => !CORPUS_ORDER.includes(c)));
+  for (const c of order) {
+    const rows = byC[c];
+    w.append(el('div', {class: 'wl-head', style: 'cursor:default'}, el('span', {class: 'ttl'}, rows[0][0].corpus_title),
+      el('span', {class: 'cnt'}, `${rows.filter(([e]) => rv(e).score).length}/${rows.length}`)));
+    for (const [e, i] of rows) {
+      const r = rv(e);
+      w.append(el('button', {class: 'wl-item' + (i === S.i ? ' active' : ''), onclick: () => { S.i = i; renderAll(); }},
+        el('span', {class: 'sc' + (r.score ? ' on' : '')}, r.score ? String(r.score) : '·'),
+        el('span', {}, el('div', {class: 't'}, `${String(e.n).padStart(2, '0')} · ${e.id}`),
+                       el('div', {class: 's'}, `gold ${e.gold} · ${e.options[e.gold] || ''} · ${e.frames} frames`))));
+    }
+  }
+  w.scrollTop = scroll; const cur = w.querySelector('.wl-item.active'); if (cur) cur.scrollIntoView({block: 'nearest'});
+}
+function renderSave() {
+  const s = document.getElementById('saveStatus'); s.innerHTML = '';
+  if (!store.persistent) s.append('this browser cannot autosave — export before closing');
+  else if (S.savedAt) s.append(el('b', {}, 'saved ' + new Date(S.savedAt).toTimeString().slice(0, 5)), ' in this browser');
+}
+function step(d) { S.i = Math.min(EX.length - 1, Math.max(0, S.i + d)); renderAll(); }
+function renderAll() { renderQuestion(); renderWorklist(); renderReview(); loadVideo(); renderSave(); }
+
+/* ---- export / theme / help / keys ---- */
+function download(name, text) {
+  const u = URL.createObjectURL(new Blob([text], {type: 'application/json'})), a = document.createElement('a');
+  a.href = u; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 500);
+}
+document.getElementById('btnExport').onclick = () => {
+  if (!S.reviewer) { const n = prompt('Your name or initials (recorded in the file):', ''); if (n) { S.reviewer = n; save(); } }
+  const p = {reviewer: S.reviewer, exported_at: new Date().toISOString(), scale: SCORE_ANCHORS,
+             reviews: EX.map(e => ({n: e.n, id: e.id, corpus: e.corpus, gold: e.gold, trace_answer: e.trace_answer,
+                                    score: rv(e).score, comment: rv(e).comment || ''}))};
+  download(`eeg-trace-scores_${(S.reviewer || 'anon').replace(/\W+/g, '')}_${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(p, null, 2));
+};
+document.getElementById('btnTheme').onclick = e => {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark'); e.target.textContent = dark ? 'Dark' : 'Light';
+};
+const HELP = `
+<h2>What you are looking at</h2>
+<p>Each example is an EEG segment rendered as a short video — one frame per 10-second window, with four panels: the <b>traces</b> by scalp chain, <b>band power</b> left and right, <b>scalp maps</b> for 1–8 Hz and 8–30 Hz, and a <b>sharpness</b> panel. This is exactly what our model sees. Below the video you can pause and step frame by frame; the label tells you which seconds of the recording the frame covers.</p>
+<p>The right panel shows the question, the correct answer, and a <b>reasoning trace</b> — the explanation we intend to train the model to produce for this example. Times mentioned in the trace are clickable and jump the video there.</p>
+<h4>What we need from you</h4>
+<p>One score from 1 to 5 for the quality of the trace: are the described findings really there, at the stated times and locations, and is the reasoning that leads to the answer clinically sound? 1 means wrong or invented; 5 means you would sign it. Add a comment when something is off — a wrong time, a mislabelled finding, a missing feature that matters — those comments are the most valuable part.</p>
+<p>Scores save automatically in this browser; click <b>Export scores</b> when you are done and send us the file.</p>
+<h4>Keyboard</h4>
+<p><kbd>←</kbd> <kbd>→</kbd> step frames · <kbd>space</kbd> play/pause · <kbd>1</kbd>–<kbd>5</kbd> score · <kbd>n</kbd> next example · <kbd>p</kbd> previous</p>
+<p style="margin-top:18px"><button class="primary" onclick="document.getElementById('modal').classList.remove('on')">Close</button></p>`;
+document.getElementById('btnHelp').onclick = () => { document.getElementById('modalBox').innerHTML = HELP; document.getElementById('modal').classList.add('on'); };
+document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') e.currentTarget.classList.remove('on'); });
+window.addEventListener('keydown', e => {
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); seekFrame(frameOf() + 1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); seekFrame(frameOf() - 1); }
+  else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'n') step(1); else if (e.key === 'p') step(-1);
+  else if (/^[1-5]$/.test(e.key)) { const r = rv(ex()); r.score = +e.key; save(); renderReview(); renderWorklist(); }
+});
+
+restore(); renderAll();
+if (!store.get('eeg-trace-review-seen')) { document.getElementById('btnHelp').click(); store.set('eeg-trace-review-seen', '1'); }
+</script>
+</body>
+</html>
